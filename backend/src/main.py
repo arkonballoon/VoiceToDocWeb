@@ -14,6 +14,9 @@ from queue_manager import TranscriptionQueueManager
 import json
 import backoff
 from contextlib import asynccontextmanager
+from services.template_service import TemplateService
+from models.template import Template
+from typing import List
 
 # Logger konfigurieren
 logging.basicConfig(level=logging.INFO)
@@ -54,7 +57,7 @@ app = FastAPI(
 # CORS-Middleware hinzufügen
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In Produktion spezifische Origins angeben
+    allow_origins=["http://localhost:3000"],  # Explizit Frontend-Origin angeben
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -73,6 +76,9 @@ queue_manager = TranscriptionQueueManager(
     max_workers=2,
     transcriber=transcriber
 )
+
+# Template-Service initialisieren
+template_service = TemplateService()
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc):
@@ -377,6 +383,45 @@ def custom_openapi():
     return app.openapi_schema
 
 app.openapi = custom_openapi
+
+@app.post("/templates", 
+    response_model=Template,
+    tags=["Templates"],
+    summary="Template hochladen"
+)
+async def create_template(
+    name: str,
+    content: str,
+    description: Optional[str] = None
+):
+    """Erstellt ein neues Template"""
+    try:
+        template = template_service.save_template(name, content, description)
+        return template
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/templates",
+    response_model=List[Template],
+    tags=["Templates"],
+    summary="Templates abrufen"
+)
+async def get_templates():
+    """Gibt eine Liste aller Templates zurück"""
+    try:
+        return template_service.get_templates()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/templates/{template_id}",
+    tags=["Templates"],
+    summary="Template löschen"
+)
+async def delete_template(template_id: str):
+    """Löscht ein Template anhand seiner ID"""
+    if template_service.delete_template(template_id):
+        return {"status": "success", "message": "Template gelöscht"}
+    raise HTTPException(status_code=404, detail="Template nicht gefunden")
 
 if __name__ == "__main__":
     import uvicorn
