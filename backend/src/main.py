@@ -68,7 +68,7 @@ TEMP_DIR = Path("temp")
 TEMP_DIR.mkdir(exist_ok=True)
 
 # Transcriber-Instanz erstellen (nur einmal)
-transcriber = Transcriber(model_size="small")
+transcriber = Transcriber()
 audio_processor = AudioProcessor()
 
 # Queue-Manager erstellen und Transcriber übergeben

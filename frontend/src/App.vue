@@ -3,41 +3,17 @@
     <header class="header">
       <nav class="nav">
         <div class="nav-links">
-          <a href="#">Unternehmen</a>
-          <a href="#" class="active">Dienstleistungen</a>
-          <a href="#">Karriere</a>
-          <a href="#">Kontakt</a>
+          <router-link to="/" :class="{ active: $route.path === '/' }">Transkription</router-link>
+          <router-link to="/templates" :class="{ active: $route.path === '/templates' }">Templates</router-link>
         </div>
       </nav>
     </header>
 
-    <div class="breadcrumb">
-      Startseite \ Dienstleistungen \ Audio Transkription
+    <div class="main-container">
+      <router-view></router-view>
     </div>
-
-    <main class="main-content">
-      <div class="hero-section">
-        <h1>AUDIO TRANSKRIPTIONS-SERVICE</h1>
-        <p class="subtitle">
-          Digitalisieren Sie Ihre Audio-Inhalte mit unserer KI-gestützten Transkriptionslösung
-        </p>
-      </div>
-
-      <TranscriptionService />
-    </main>
   </div>
 </template>
-
-<script>
-import TranscriptionService from './components/TranscriptionService.vue'
-
-export default {
-  name: 'App',
-  components: {
-    TranscriptionService
-  }
-}
-</script>
 
 <style>
 :root {
@@ -47,87 +23,50 @@ export default {
   --background-gradient: linear-gradient(135deg, #001428 0%, #004080 100%);
 }
 
-#app {
-  font-family: Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  color: var(--text-color);
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #f5f6fa;
 }
 
 .header {
-  background: white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  padding: 0.5rem 2rem;
-}
-
-.nav {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  height: 40px;
+  background: var(--background-gradient);
+  padding: 1rem;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
 }
 
 .nav-links {
   display: flex;
   gap: 2rem;
+  justify-content: center;
 }
 
 .nav-links a {
-  text-decoration: none;
-  color: var(--text-color);
-  font-weight: 500;
-}
-
-.nav-links a.active {
-  color: var(--primary-color);
-  border-bottom: 2px solid var(--primary-color);
-}
-
-.breadcrumb {
-  max-width: 1200px;
-  margin: 1rem auto;
-  padding: 0 2rem;
-  color: #666;
-  font-size: 0.9rem;
-}
-
-.hero-section {
-  background: var(--background-gradient);
   color: white;
-  padding: 4rem 2rem;
-  text-align: center;
-  margin-bottom: 2rem;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  transition: background-color 0.3s;
 }
 
-.hero-section h1 {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
-  position: relative;
-  display: inline-block;
+.nav-links a.active,
+.nav-links a:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
-.hero-section h1::after {
-  content: '';
-  position: absolute;
-  bottom: -10px;
-  left: 0;
-  width: 100%;
-  height: 4px;
-  background: var(--primary-color);
-}
-
-.subtitle {
-  font-size: 1.2rem;
-  max-width: 800px;
-  margin: 0 auto;
-  opacity: 0.9;
-}
-
-.main-content {
+.main-container {
+  margin-top: 64px; /* Höhe der Header-Bar */
+  padding: 2rem;
   max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 2rem;
+  margin-left: auto;
+  margin-right: auto;
 }
 </style>
