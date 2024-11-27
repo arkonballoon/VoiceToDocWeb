@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, UploadFile, File, HTTPException, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, UploadFile, File, HTTPException, WebSocketDisconnect, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -21,6 +21,9 @@ from typing import List
 # Logger konfigurieren
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Relativer Pfad von main.py aus zu den Templates
+TEMPLATE_PATH = Path("data/templates").resolve()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -78,7 +81,7 @@ queue_manager = TranscriptionQueueManager(
 )
 
 # Template-Service initialisieren
-template_service = TemplateService()
+template_service = TemplateService(storage_path=TEMPLATE_PATH)
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc):
@@ -384,43 +387,30 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-@app.post("/templates", 
-    response_model=Template,
-    tags=["Templates"],
-    summary="Template hochladen"
-)
+@app.post("/templates/")
 async def create_template(
-    name: str,
-    content: str,
-    description: Optional[str] = None
+    name: str = Body(...),
+    content: str = Body(...),
+    description: str | None = Body(None)
 ):
-    """Erstellt ein neues Template"""
     try:
-        template = template_service.save_template(name, content, description)
+        template = template_service.save_template(
+            name=name,
+            content=content,
+            description=description
+        )
         return template
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/templates",
-    response_model=List[Template],
-    tags=["Templates"],
-    summary="Templates abrufen"
-)
+@app.get("/templates/", response_model=list[Template])
 async def get_templates():
-    """Gibt eine Liste aller Templates zurück"""
-    try:
-        return template_service.get_templates()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return template_service.get_templates()
 
-@app.delete("/templates/{template_id}",
-    tags=["Templates"],
-    summary="Template löschen"
-)
+@app.delete("/templates/{template_id}")
 async def delete_template(template_id: str):
-    """Löscht ein Template anhand seiner ID"""
     if template_service.delete_template(template_id):
-        return {"status": "success", "message": "Template gelöscht"}
+        return {"message": "Template erfolgreich gelöscht"}
     raise HTTPException(status_code=404, detail="Template nicht gefunden")
 
 if __name__ == "__main__":

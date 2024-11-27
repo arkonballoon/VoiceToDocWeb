@@ -41,6 +41,7 @@ body {
   left: 0;
   right: 0;
   z-index: 100;
+  height: 4rem;
 }
 
 .nav-links {
@@ -63,10 +64,9 @@ body {
 }
 
 .main-container {
-  margin-top: 64px; /* Höhe der Header-Bar */
-  padding: 2rem;
+  padding-top: 5rem;
   max-width: 1200px;
-  margin-left: auto;
-  margin-right: auto;
+  margin: 0 auto;
+  width: 100%;
 }
 </style>

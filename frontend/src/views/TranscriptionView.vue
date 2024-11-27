@@ -1,19 +1,12 @@
 <template>
-  <div class="transcription-view">
-    <div class="breadcrumb">
-      Startseite \ Dienstleistungen \ Audio Transkription
+  <div class="page-container">
+    <div class="page-header">
+      <h2>Audio Transkriptions-Service</h2>
     </div>
 
-    <main class="main-content">
-      <div class="hero-section">
-        <h1>AUDIO TRANSKRIPTIONS-SERVICE</h1>
-        <p class="subtitle">
-          Digitalisieren Sie Ihre Audio-Inhalte mit unserer KI-gestützten Transkriptionslösung
-        </p>
-      </div>
-
+    <div class="page-content">
       <TranscriptionService />
-    </main>
+    </div>
   </div>
 </template>
 
@@ -29,28 +22,25 @@ export default {
 </script>
 
 <style scoped>
-.transcription-view {
+.page-container {
+  padding: 0 2rem;
   width: 100%;
 }
 
-.breadcrumb {
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 2rem;
-  color: #666;
 }
 
-.hero-section {
-  text-align: center;
-  margin-bottom: 3rem;
+.page-header h2 {
+  font-size: 1.5rem;
+  color: var(--text-color);
+  margin: 0;
 }
 
-.hero-section h1 {
-  font-size: 2.5rem;
-  color: var(--secondary-color);
-  margin-bottom: 1rem;
-}
-
-.subtitle {
-  font-size: 1.2rem;
-  color: #666;
+.page-content {
+  padding: 0;
 }
 </style> 

@@ -1,44 +1,29 @@
 <template>
-  <div class="template-manager">
-    <div class="template-header">
+  <div class="page-container">
+    <div class="page-header">
       <h2>Template-Verwaltung</h2>
+    </div>
+
+    <div class="page-content">
+      <div class="template-list">
+        <div v-for="template in templates" 
+             :key="template.id" 
+             class="template-card"
+             :title="template.description || 'Keine Beschreibung'">
+          <span class="template-name">{{ template.name }}</span>
+          <div class="template-actions">
+            <button @click="showPreview(template)" class="preview-button" title="Vorschau">
+              <i class="fas fa-eye"></i>
+            </button>
+            <button @click="deleteTemplate(template.id)" class="delete-button" title="Löschen">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
       <button @click="showCreateDialog = true" class="create-button">
-        Neues Template
+        <i class="fas fa-plus"></i> Neues Template
       </button>
-    </div>
-
-    <!-- Template Liste -->
-    <div class="template-list">
-      <div v-for="template in templates" :key="template.id" class="template-card">
-        <div class="template-info">
-          <h3>{{ template.name }}</h3>
-          <p class="description">{{ template.description || 'Keine Beschreibung' }}</p>
-          <span class="date">Erstellt: {{ formatDate(template.created_at) }}</span>
-        </div>
-        <div class="template-preview">
-          <button @click="showPreview(template)" class="preview-button">
-            Vorschau
-          </button>
-        </div>
-        <div class="template-actions">
-          <button @click="deleteTemplate(template.id)" class="delete-button">
-            Löschen
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Preview Dialog -->
-    <div v-if="showPreviewDialog" class="dialog-overlay">
-      <div class="dialog preview-dialog">
-        <div class="dialog-header">
-          <h3>{{ selectedTemplate?.name }}</h3>
-          <button @click="showPreviewDialog = false" class="close-button">&times;</button>
-        </div>
-        <div class="preview-content">
-          <p class="template-content">{{ selectedTemplate?.content }}</p>
-        </div>
-      </div>
     </div>
 
     <!-- Create Template Dialog -->
@@ -63,6 +48,19 @@
             <button type="submit">Erstellen</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Preview Dialog -->
+    <div v-if="showPreviewDialog" class="dialog-overlay">
+      <div class="dialog preview-dialog">
+        <div class="dialog-header">
+          <h3>{{ selectedTemplate?.name }}</h3>
+          <button @click="showPreviewDialog = false" class="close-button">&times;</button>
+        </div>
+        <div class="preview-content">
+          <pre class="template-content">{{ selectedTemplate?.content }}</pre>
+        </div>
       </div>
     </div>
   </div>
@@ -96,21 +94,30 @@ export default {
     },
     async createTemplate() {
       try {
-        const response = await fetch('http://localhost:8000/templates', {
+        const response = await fetch('http://localhost:8000/templates/', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
           },
-          body: JSON.stringify(this.newTemplate)
-        })
+          body: JSON.stringify({
+            name: this.newTemplate.name,
+            content: this.newTemplate.content,
+            description: this.newTemplate.description
+          })
+        });
         
-        if (!response.ok) throw new Error('Fehler beim Erstellen des Templates')
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
         
         await this.loadTemplates()
         this.showCreateDialog = false
         this.newTemplate = { name: '', description: '', content: '' }
       } catch (error) {
-        console.error('Fehler:', error)
+        console.error('Fehler beim Erstellen des Templates:', error);
+        throw error;
       }
     },
     async deleteTemplate(id) {
@@ -143,15 +150,26 @@ export default {
 </script>
 
 <style scoped>
-.template-manager {
+.page-container {
+  padding: 0 2rem;
   width: 100%;
 }
 
-.template-header {
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+}
+
+.page-header h2 {
+  font-size: 1.5rem;
+  color: var(--text-color);
+  margin: 0;
+}
+
+.page-content {
+  padding: 0;
 }
 
 .create-button {
@@ -161,6 +179,10 @@ export default {
   padding: 0.5rem 1rem;
   border-radius: 4px;
   cursor: pointer;
+  margin-top: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .template-list {
@@ -170,39 +192,48 @@ export default {
 }
 
 .template-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   background: white;
   border-radius: 8px;
   padding: 1rem;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.template-info h3 {
-  margin: 0 0 0.5rem 0;
+.template-name {
+  font-weight: bold;
+  margin-right: 1rem;
 }
 
-.description {
-  color: #666;
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
+.template-actions {
+  display: flex;
+  gap: 0.5rem;
 }
 
-.date {
-  font-size: 0.8rem;
-  color: #999;
-}
-
-.template-preview {
-  margin-top: 1rem;
+.preview-button, .delete-button {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .preview-button {
   background: var(--secondary-color);
   color: white;
-  border: none;
-  padding: 0.3rem 0.8rem;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-right: 0.5rem;
+}
+
+.delete-button {
+  background: var(--danger-color, #dc3545);
+  color: white;
+}
+
+.preview-button i, .delete-button i {
+  font-size: 1rem;
 }
 
 .preview-dialog {
@@ -240,13 +271,6 @@ export default {
   white-space: pre-wrap;
   font-family: monospace;
   line-height: 1.5;
-}
-
-.template-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
 }
 
 .dialog-overlay {
