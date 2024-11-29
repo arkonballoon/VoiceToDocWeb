@@ -15,7 +15,7 @@ import json
 import backoff
 from contextlib import asynccontextmanager
 from services.template_service import TemplateService
-from models.template import Template
+from models.template import Template, TemplateUpdate
 from typing import List
 
 # Logger konfigurieren
@@ -60,7 +60,7 @@ app = FastAPI(
 # CORS-Middleware hinzufügen
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Explizit Frontend-Origin angeben
+    allow_origins=["http://localhost:3000", "http://192.168.178.67:3000"],  # Explizit Frontend-Origin angeben
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -412,6 +412,24 @@ async def delete_template(template_id: str):
     if template_service.delete_template(template_id):
         return {"message": "Template erfolgreich gelöscht"}
     raise HTTPException(status_code=404, detail="Template nicht gefunden")
+
+@app.put("/templates/{template_id}")
+async def update_template(template_id: str, template_update: TemplateUpdate):
+    """Aktualisiert ein bestehendes Template"""
+    try:
+        updated_template = template_service.update_template(template_id, template_update)
+        return updated_template
+    except TemplateNotFoundError:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Template mit ID {template_id} nicht gefunden"
+        )
+    except Exception as e:
+        logger.error(f"Fehler beim Aktualisieren des Templates: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Interner Serverfehler beim Aktualisieren des Templates"
+        )
 
 if __name__ == "__main__":
     import uvicorn

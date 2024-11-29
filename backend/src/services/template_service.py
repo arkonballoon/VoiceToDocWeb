@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import List, Optional
 from datetime import datetime
 import uuid
-from models.template import Template
+from models.template import Template, TemplateUpdate
 
 class TemplateService:
     def __init__(self, storage_path: Path):
@@ -69,3 +69,33 @@ class TemplateService:
             template_file.unlink()
             return True
         return False 
+    
+    def update_template(self, template_id: str, template_update: TemplateUpdate) -> Template:
+        """Aktualisiert ein bestehendes Template"""
+        template_path = self.storage_path / f"{template_id}.json"
+        
+        if not template_path.exists():
+            raise TemplateNotFoundError(f"Template mit ID {template_id} nicht gefunden")
+        
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_data = json.load(f)
+            
+            # Aktualisiere nur die bereitgestellten Felder
+            if template_update.content is not None:
+                template_data['content'] = template_update.content
+            if template_update.name is not None:
+                template_data['name'] = template_update.name
+            if template_update.description is not None:
+                template_data['description'] = template_update.description
+            
+            template_data['updated_at'] = datetime.now().isoformat()
+            
+            with open(template_path, 'w', encoding='utf-8') as f:
+                json.dump(template_data, f, indent=4, ensure_ascii=False)
+            
+            return Template(**template_data)
+        
+        except Exception as e:
+            logger.error(f"Fehler beim Aktualisieren des Templates: {str(e)}")
+            raise

@@ -36,21 +36,34 @@
       {{ error }}
     </div>
 
-    <div v-if="transcript" class="result-section">
-      <h3>Transkription</h3>
-      <div class="transcript-card">
-        <p class="transcript-text">{{ transcript }}</p>
+    <div v-if="transcript" class="editor-section">
+      <div class="editor-header">
+        <h3>Transkription</h3>
         <div class="confidence-badge" v-if="confidence">
           Konfidenz: {{ (confidence * 100).toFixed(2) }}%
         </div>
       </div>
+      <QuillEditor
+        v-model:content="editableTranscript"
+        @update:content="handleTranscriptChange"
+        contentType="html"
+        :toolbar="toolbarOptions"
+        theme="snow"
+        :options="editorOptions"
+      />
     </div>
   </div>
 </template>
 
 <script>
+import { QuillEditor } from '@vueup/vue-quill'
+import '@vueup/vue-quill/dist/vue-quill.snow.css'
+
 export default {
   name: 'TranscriptionService',
+  components: {
+    QuillEditor
+  },
   data() {
     return {
       selectedFile: null,
@@ -58,7 +71,45 @@ export default {
       confidence: null,
       isLoading: false,
       error: null,
-      isDragging: false
+      isDragging: false,
+      editableTranscript: '',
+      toolbarOptions: [
+        ['bold', 'italic', 'underline', 'strike'],
+        ['blockquote', 'code-block'],
+        [{ 'header': 1 }, { 'header': 2 }],
+        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+        [{ 'script': 'sub'}, { 'script': 'super' }],
+        [{ 'indent': '-1'}, { 'indent': '+1' }],
+        [{ 'size': ['small', false, 'large', 'huge'] }],
+        [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+        ['clean']
+      ],
+      editorOptions: {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            ['bold', 'italic', 'underline', 'strike'],
+            ['blockquote', 'code-block'],
+            [{ 'header': 1 }, { 'header': 2 }],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'script': 'sub'}, { 'script': 'super' }],
+            [{ 'indent': '-1'}, { 'indent': '+1' }],
+            [{ 'size': ['small', false, 'large', 'huge'] }],
+            [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+            ['clean']
+          ]
+        }
+      }
+    }
+  },
+  watch: {
+    transcript: {
+      handler(newTranscript) {
+        if (newTranscript) {
+          this.editableTranscript = `<p>${newTranscript.replace(/\n/g, '</p><p>')}</p>`;
+        }
+      },
+      immediate: true
     }
   },
   methods: {
@@ -99,7 +150,7 @@ export default {
       try {
         console.log('Sende Datei:', this.selectedFile.name)
         
-        const response = await fetch('http://localhost:8000/upload_audio', {
+        const response = await fetch('http://192.168.178.67:8000/upload_audio', {
           method: 'POST',
           body: formData
         })
@@ -120,6 +171,11 @@ export default {
       } finally {
         this.isLoading = false
       }
+    },
+    handleTranscriptChange(text) {
+      // Entferne HTML-Tags für reinen Text
+      const plainText = text.replace(/<[^>]*>/g, '\n').replace(/\n{2,}/g, '\n').trim();
+      this.$emit('transcript-changed', plainText);
     }
   }
 }
@@ -212,20 +268,16 @@ export default {
   margin: 1rem 0;
 }
 
-.result-section {
+.editor-section {
   margin-top: 2rem;
+  max-width: 800px;
+  margin: 2rem auto;
 }
 
-.transcript-card {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.1);
-  padding: 2rem;
-  position: relative;
-}
-
-.transcript-text {
-  line-height: 1.6;
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 1rem;
 }
 
@@ -236,5 +288,21 @@ export default {
   padding: 0.5rem 1rem;
   border-radius: 20px;
   font-size: 0.9rem;
+}
+
+:deep(.ql-container) {
+  min-height: 200px;
+  font-size: 16px;
+  font-family: inherit;
+}
+
+:deep(.ql-toolbar) {
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+}
+
+:deep(.ql-container) {
+  border-bottom-left-radius: 4px;
+  border-bottom-right-radius: 4px;
 }
 </style> 

@@ -1,5 +1,8 @@
 {
   "scripts": {
     "serve": "vue-cli-service serve --port 3000"
+  },
+  "dependencies": {
+    "@vueup/vue-quill": "^1.2.0"
   }
-} 
+}
