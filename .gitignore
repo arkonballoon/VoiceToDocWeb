@@ -79,7 +79,6 @@ desktop.ini
 *.pth
 *.bin
 .cache/
-models/
 
 # FastAPI spezifisch
 .pytest_cache/

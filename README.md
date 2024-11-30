@@ -39,4 +39,42 @@ Hauptmerkmale:
 
 ---
 
+# Installation und Setup
+
+## Repository klonen
+
+```bash
+git clone https://github.com/arkonballoon/VoiceToDocWeb.git
+```
+
+## Backend
+```bash
+# Python Virtual Environment erstellen und aktivieren
+python -m venv venv
+source venv/bin/activate # Unter Windows: venv\Scripts\activate
+# In das Backend-Verzeichnis wechseln
+cd backend
+# Python-Abhängigkeiten installieren
+pip install -r requirements.txt
+# PyTorch Installation (optional, wenn nicht in requirements.txt)
+bash ../install_pytorch.sh
+# Backend-Server starten
+cd src
+uvicorn main:app --reload
+```
+
+Der Backend-Server läuft dann unter `http://localhost:8000`
+
+```bash
+# In das Frontend-Verzeichnis wechseln
+cd frontend
+# NPM-Abhängigkeiten installieren
+npm install
+# Development-Server starten
+npm run dev
+```
+Der Frontend-Server läuft dann unter `http://localhost:5173`
+
+Beide Server müssen parallel laufen, damit die Anwendung funktioniert. 
+
 Entwickelt als Proof of Concept für CHOP (Chat Oriented Programming)
