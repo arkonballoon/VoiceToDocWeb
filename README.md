@@ -73,7 +73,7 @@ npm install
 # Development-Server starten
 npm run dev
 ```
-Der Frontend-Server läuft dann unter `http://localhost:5173`
+Der Frontend-Server läuft dann unter `http://localhost:3000`
 
 Beide Server müssen parallel laufen, damit die Anwendung funktioniert. 
 
