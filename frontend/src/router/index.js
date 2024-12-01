@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import TranscriptionView from '../views/TranscriptionView.vue'
 import TemplateManager from '../components/TemplateManager.vue'
+import ConfigurationView from '../views/ConfigurationView.vue'
 
 const routes = [
   {
@@ -12,6 +13,11 @@ const routes = [
     path: '/templates',
     name: 'Templates',
     component: TemplateManager
+  },
+  {
+    path: '/config',
+    name: 'Konfiguration',
+    component: ConfigurationView
   }
 ]
 

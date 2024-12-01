@@ -4,33 +4,27 @@ import numpy as np
 from typing import Optional, List, Tuple
 from utils.logger import get_logger
 import torch
+from config import settings
 
 logger = get_logger(__name__)
 
 class Transcriber:
     def __init__(self, model_size: str = None):
-        """Whisper-Modell 'large-v3' erfolgreich geladen
-        Initialisiert das Whisper-Modell.
-        Verwendet standardmäßig large-v3 bei GPU und small bei CPU.
-        
-        Args:
-            model_size: Optional - Überschreibt die Standard-Modellauswahl
-                       ("tiny", "base", "small", "medium", "large", "large-v3")
-        """
+        """Initialisiert das Whisper-Modell."""
+        self.model = None
+        self.load_model(model_size)
+    
+    def load_model(self, model_size: str = None):
+        """Lädt das Whisper-Modell mit den angegebenen Parametern."""
         try:
-            # Prüfe ob CUDA verfügbar ist
             device = "cuda" if torch.cuda.is_available() else "cpu"
             compute_type = "float16" if device == "cuda" else "int8"
             
-            # Wähle Standard-Modell basierend auf verfügbarer Hardware
             if model_size is None:
-                model_size = "large-v3" if device == "cuda" else "small"
+                model_size = settings.WHISPER_DEVICE_CUDA if device == "cuda" else settings.WHISPER_MODEL
             
-            logger.info(f"Verwende Gerät: {device}")
-            if device == "cuda":
-                logger.info(f"GPU-Modell: {torch.cuda.get_device_name(0)}")
+            logger.info(f"Lade Whisper-Modell: {model_size} auf {device}")
             
-            logger.info(f"Verwende Whisper-Modell: {model_size}")
             self.model = WhisperModel(
                 model_size, 
                 device=device, 
@@ -41,6 +35,16 @@ class Transcriber:
         except Exception as e:
             logger.error(f"Fehler beim Laden des Whisper-Modells: {str(e)}")
             raise
+    
+    def reload_model(self):
+        """Lädt das Modell mit aktuellen Konfigurationseinstellungen neu."""
+        logger.info("Lade Whisper-Modell neu...")
+        if self.model:
+            # Cleanup des alten Modells
+            del self.model
+            torch.cuda.empty_cache()  # GPU-Speicher freigeben
+        
+        self.load_model()
 
     def transcribe_audio(
         self, 
@@ -113,3 +117,6 @@ class Transcriber:
         except Exception as e:
             logger.error(f"Fehler bei der Chunk-Transkription: {str(e)}")
             raise 
+
+# Globale Transcriber-Instanz
+transcriber_instance = Transcriber()

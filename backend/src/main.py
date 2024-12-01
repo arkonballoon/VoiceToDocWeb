@@ -20,6 +20,7 @@ from typing import List
 from utils.logger import configure_logging
 from utils.exceptions import VoiceToDocException, AudioProcessingError, TranscriptionError, handle_voice_to_doc_exception
 from config import settings
+from pydantic import BaseModel
 
 # Logger Setup
 LOG_DIR = Path("logs")
@@ -478,6 +479,101 @@ async def update_template(template_id: str, template_update: TemplateUpdate):
             status_code=500,
             detail="Interner Serverfehler beim Aktualisieren des Templates"
         )
+
+# Definiere das Schema für Konfigurationsänderungen
+class ConfigUpdate(BaseModel):
+    """Schema für Konfigurationsänderungen"""
+    AUDIO_MIN_SILENCE_LEN: int | None = None
+    AUDIO_SILENCE_THRESH: int | None = None
+    AUDIO_MIN_CHUNK_LENGTH: int | None = None
+    AUDIO_MAX_CHUNK_LENGTH: int | None = None
+    WHISPER_MODEL: str | None = None
+    WHISPER_DEVICE_CUDA: str | None = None
+    MAX_WORKERS: int | None = None
+    LOG_LEVEL: int | None = None
+    ALLOWED_ORIGINS: List[str] | None = None
+
+# Füge die Endpunkte zur FastAPI-App hinzu
+@app.get("/config", 
+    tags=["Konfiguration"],
+    summary="Aktuelle Konfiguration abrufen",
+    response_model=Dict[str, Any],
+    responses={
+        200: {
+            "description": "Aktuelle Konfigurationseinstellungen",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "AUDIO_MIN_SILENCE_LEN": 500,
+                        "AUDIO_SILENCE_THRESH": -32,
+                        "WHISPER_MODEL": "base",
+                        "MAX_WORKERS": 3
+                    }
+                }
+            }
+        }
+    }
+)
+async def get_config():
+    """
+    Gibt die aktuelle Konfiguration zurück.
+    
+    Returns:
+        Dict mit den aktuellen Konfigurationseinstellungen
+    """
+    config_dict = settings.model_dump()
+    # Konvertiere Path-Objekte zu Strings
+    for key, value in config_dict.items():
+        if isinstance(value, Path):
+            config_dict[key] = str(value)
+    return config_dict
+
+@app.put("/config")
+async def update_config(config_update: ConfigUpdate):
+    updated_settings = {}
+    valid_models = ["tiny", "base", "small", "medium", "large", "large-v3"]
+    needs_transcriber_reload = False
+    
+    update_dict = config_update.model_dump(exclude_unset=True)
+    for key, value in update_dict.items():
+        if value is not None:
+            if key in ["WHISPER_MODEL", "WHISPER_DEVICE_CUDA"] and value not in valid_models:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Ungültiges Whisper-Modell für {key}: {value}"
+                )
+            if key == "MAX_WORKERS" and not (1 <= value <= 10):
+                raise HTTPException(
+                    status_code=400,
+                    detail="MAX_WORKERS muss zwischen 1 und 10 liegen"
+                )
+            
+            # Prüfe ob sich ein Whisper-Modell ändert
+            if key in ["WHISPER_MODEL", "WHISPER_DEVICE_CUDA"] and getattr(settings, key) != value:
+                needs_transcriber_reload = True
+            
+            setattr(settings, key, value)
+            updated_settings[key] = value
+    
+    try:
+        settings.save_to_file()
+        
+        # Transcriber neu initialisieren wenn nötig
+        if needs_transcriber_reload:
+            from transcriber import transcriber_instance
+            transcriber_instance.reload_model()
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Fehler beim Speichern der Konfiguration: {str(e)}"
+        )
+    
+    return {
+        "message": "Konfiguration aktualisiert",
+        "updated_settings": updated_settings,
+        "transcriber_reloaded": needs_transcriber_reload
+    }
 
 if __name__ == "__main__":
     import uvicorn

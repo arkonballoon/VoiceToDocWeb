@@ -1,0 +1,26 @@
+{
+    "APP_NAME": "VoiceToDoc",
+    "DEBUG": false,
+    "DATA_DIR": "data",
+    "TEMP_DIR": "temp",
+    "LOG_DIR": "logs",
+    "TEMPLATE_DIR": "data\\templates",
+    "CONFIG_FILE": "data\\config.json",
+    "LOG_LEVEL": 20,
+    "LOG_FORMAT": "%(asctime)s - %(levelname)s - %(module)s - %(message)s",
+    "ALLOWED_ORIGINS": [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://192.168.178.67:3000",
+        "http://192.168.178.67:5173",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000"
+    ],
+    "AUDIO_MIN_SILENCE_LEN": 500,
+    "AUDIO_SILENCE_THRESH": -32,
+    "AUDIO_MIN_CHUNK_LENGTH": 2000,
+    "AUDIO_MAX_CHUNK_LENGTH": 5000,
+    "WHISPER_MODEL": "base",
+    "WHISPER_DEVICE_CUDA": "large-v3",
+    "MAX_WORKERS": 3
+}
