@@ -1,34 +1,39 @@
 import subprocess
 from pathlib import Path
-from typing import Optional, List, Tuple
-import logging
-import numpy as np
+from typing import List
 from pydub import AudioSegment
 from pydub.silence import detect_nonsilent
 import io
 import wave
+from utils.logger import get_logger
+from utils.exceptions import AudioProcessingError
+from config import settings
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class AudioProcessor:
     """
     Klasse zur Verarbeitung von Audiodateien.
     """
     
-    def __init__(
-        self,
-        min_silence_len: int = 500,    # Minimale Stille in ms
-        silence_thresh: int = -32,      # Schwellenwert für Stille in dB
-        min_chunk_length: int = 2000,   # Minimale Chunklänge in ms
-        max_chunk_length: int = 5000    # Maximale Chunklänge in ms
-    ):
-        self.min_silence_len = min_silence_len
-        self.silence_thresh = silence_thresh
-        self.min_chunk_length = min_chunk_length
-        self.max_chunk_length = max_chunk_length
+    def __init__(self):
+        """
+        Initialisiert den AudioProcessor mit Werten aus der Konfiguration
+        """
+        self.min_silence_len = settings.AUDIO_MIN_SILENCE_LEN
+        self.silence_thresh = settings.AUDIO_SILENCE_THRESH
+        self.min_chunk_length = settings.AUDIO_MIN_CHUNK_LENGTH
+        self.max_chunk_length = settings.AUDIO_MAX_CHUNK_LENGTH
+        
+        logger.debug(
+            f"AudioProcessor initialisiert mit: "
+            f"min_silence_len={self.min_silence_len}, "
+            f"silence_thresh={self.silence_thresh}, "
+            f"min_chunk_length={self.min_chunk_length}, "
+            f"max_chunk_length={self.max_chunk_length}"
+        )
     
-    @staticmethod
-    def convert_webm_to_wav(input_path: Path, output_path: Path) -> bool:
+    def convert_webm_to_wav(self, input_path: Path, output_path: Path) -> bool:
         """
         Konvertiert WebM-Audio zu WAV-Format mit den für Whisper erforderlichen Parametern.
         """
@@ -42,101 +47,84 @@ class AudioProcessor:
                 str(output_path)
             ]
             
-            subprocess.run(command, check=True, capture_output=True)
+            result = subprocess.run(command, check=True, capture_output=True)
+            if result.returncode != 0:
+                raise AudioProcessingError(
+                    "FFmpeg-Konvertierung fehlgeschlagen",
+                    original_error=subprocess.CalledProcessError(result.returncode, command, result.stdout, result.stderr)
+                )
             return True
             
         except subprocess.CalledProcessError as e:
-            logger.error(f"FFmpeg-Fehler: {e.stderr.decode()}")
-            return False
+            raise AudioProcessingError(
+                f"FFmpeg-Fehler: {e.stderr.decode() if e.stderr else 'Unbekannter Fehler'}",
+                original_error=e
+            )
         except Exception as e:
-            logger.error(f"Konvertierungsfehler: {str(e)}")
-            return False
+            raise AudioProcessingError(
+                "Unerwarteter Fehler bei der Audiokonvertierung",
+                original_error=e
+            )
 
-    def process_audio_chunk(self, audio_data: bytes) -> List[bytes]:
+    def detect_silence(self, audio_path: Path) -> List[tuple]:
         """
-        Verarbeitet einen Audio-Chunk und teilt ihn in kleinere Chunks basierend auf Stille.
-        
-        Args:
-            audio_data: Audio-Bytes im WAV-Format
-            
-        Returns:
-            Liste von WAV-Chunks
+        Erkennt Stille in einer Audiodatei.
         """
         try:
-            # Audio-Bytes in AudioSegment konvertieren
-            audio = AudioSegment.from_wav(io.BytesIO(audio_data))
-            
-            # Nicht-stille Bereiche erkennen
-            nonsilent_ranges = detect_nonsilent(
+            audio = AudioSegment.from_wav(str(audio_path))
+            silence_ranges = detect_nonsilent(
                 audio,
                 min_silence_len=self.min_silence_len,
                 silence_thresh=self.silence_thresh
             )
-            
-            if not nonsilent_ranges:
-                return []
-            
-            chunks = []
-            current_chunk_start = nonsilent_ranges[0][0]
-            
-            for i in range(len(nonsilent_ranges)):
-                chunk_end = nonsilent_ranges[i][1]
-                next_start = nonsilent_ranges[i+1][0] if i < len(nonsilent_ranges)-1 else None
-                
-                # Prüfen, ob der aktuelle Chunk die maximale Länge überschreitet
-                chunk_length = chunk_end - current_chunk_start
-                if chunk_length >= self.max_chunk_length:
-                    # Chunk extrahieren und speichern
-                    chunk = audio[current_chunk_start:chunk_end]
-                    chunks.append(self._segment_to_wav_bytes(chunk))
-                    current_chunk_start = chunk_end
-                
-                # Prüfen, ob eine lange Pause folgt oder es das letzte Segment ist
-                elif next_start is None or (next_start - chunk_end) >= self.min_silence_len:
-                    if chunk_length >= self.min_chunk_length:
-                        # Chunk extrahieren und speichern
-                        chunk = audio[current_chunk_start:chunk_end]
-                        chunks.append(self._segment_to_wav_bytes(chunk))
-                    current_chunk_start = next_start if next_start is not None else chunk_end
-            
-            return chunks
-            
+            return silence_ranges
         except Exception as e:
-            logger.error(f"Fehler bei der Chunk-Verarbeitung: {str(e)}")
-            raise
+            raise AudioProcessingError(
+                "Fehler bei der Stilleerkennung",
+                original_error=e
+            )
 
-    def _segment_to_wav_bytes(self, segment: AudioSegment) -> bytes:
+    def split_audio(self, audio_path: Path, output_dir: Path) -> List[Path]:
         """
-        Konvertiert ein AudioSegment in WAV-Bytes.
-        """
-        buffer = io.BytesIO()
-        
-        # WAV-Parameter setzen
-        wav_file = wave.open(buffer, 'wb')
-        wav_file.setnchannels(1)
-        wav_file.setsampwidth(2)  # 16-bit
-        wav_file.setframerate(16000)
-        
-        # Audio-Daten schreiben
-        wav_file.writeframes(segment.raw_data)
-        wav_file.close()
-        
-        return buffer.getvalue()
-
-    def is_silence(self, audio_data: bytes, threshold_db: float = -32) -> bool:
-        """
-        Prüft, ob ein Audio-Chunk hauptsächlich aus Stille besteht.
-        
-        Args:
-            audio_data: Audio-Bytes im WAV-Format
-            threshold_db: Schwellenwert in dB für Stille
-            
-        Returns:
-            True wenn der Chunk hauptsächlich Stille enthält
+        Teilt eine Audiodatei an Stellen der Stille.
         """
         try:
-            audio = AudioSegment.from_wav(io.BytesIO(audio_data))
-            return audio.dBFS < threshold_db
+            if not output_dir.exists():
+                output_dir.mkdir(parents=True)
+                
+            audio = AudioSegment.from_wav(str(audio_path))
+            silence_ranges = self.detect_silence(audio_path)
+            
+            if not silence_ranges:
+                raise AudioProcessingError("Keine geeigneten Stellen zum Teilen gefunden")
+                
+            chunks = []
+            last_end = 0
+            
+            for start, end in silence_ranges:
+                if start - last_end >= self.min_chunk_length:
+                    chunk = audio[last_end:start]
+                    chunk_path = output_dir / f"chunk_{len(chunks)}.wav"
+                    chunk.export(str(chunk_path), format="wav")
+                    chunks.append(chunk_path)
+                last_end = end
+                
+            # Letztes Segment
+            if len(audio) - last_end >= self.min_chunk_length:
+                chunk = audio[last_end:]
+                chunk_path = output_dir / f"chunk_{len(chunks)}.wav"
+                chunk.export(str(chunk_path), format="wav")
+                chunks.append(chunk_path)
+                
+            if not chunks:
+                raise AudioProcessingError("Keine gültigen Audiochunks erzeugt")
+                
+            return chunks
+            
+        except AudioProcessingError:
+            raise
         except Exception as e:
-            logger.error(f"Fehler bei der Stilleprüfung: {str(e)}")
-            return False 
+            raise AudioProcessingError(
+                "Fehler beim Aufteilen der Audiodatei",
+                original_error=e
+            ) 

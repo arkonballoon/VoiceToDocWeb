@@ -8,8 +8,9 @@ import tempfile
 from pathlib import Path
 from transcriber import Transcriber
 import time
+from utils.logger import get_logger, log_function_call
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class TranscriptionProgress(NamedTuple):
     """Repräsentiert den Fortschritt einer Transkription"""
@@ -48,10 +49,10 @@ class TranscriptionQueueManager:
         self.workers: List[asyncio.Task] = []
         self.callbacks: Dict[str, Callable[[Dict[str, Any]], Awaitable[None]]] = {}
         
-        # Einen einzelnen Transcriber verwenden
-        self.transcriber = transcriber or Transcriber(model_size="small")
+        if transcriber is None:
+            raise ValueError("Transcriber instance must be provided")
         
-        # Semaphore für Transcriber-Zugriff
+        self.transcriber = transcriber
         self.transcriber_lock = asyncio.Semaphore(1)
         
         # Worker-ID-Counter
@@ -63,6 +64,7 @@ class TranscriptionQueueManager:
         self._worker_id = (self._worker_id + 1) % self.max_workers
         return self._worker_id
         
+    @log_function_call(logger)
     async def start(self):
         """Startet die Worker-Tasks"""
         for worker_id in range(self.max_workers):
@@ -72,6 +74,7 @@ class TranscriptionQueueManager:
             self.workers.append(worker)
         logger.info(f"{self.max_workers} Transkriptions-Worker gestartet")
 
+    @log_function_call(logger)
     async def stop(self):
         """Stoppt alle Worker-Tasks"""
         for worker in self.workers:
@@ -100,6 +103,7 @@ class TranscriptionQueueManager:
             average_chunk_time=avg_chunk_time
         )
 
+    @log_function_call(logger)
     async def add_task(
         self, 
         audio_data: bytes, 
@@ -150,6 +154,7 @@ class TranscriptionQueueManager:
         
         return task_id
 
+    @log_function_call(logger)
     async def _transcribe_audio(
         self,
         worker_id: int,

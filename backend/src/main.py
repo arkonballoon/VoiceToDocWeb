@@ -17,13 +17,25 @@ from contextlib import asynccontextmanager
 from services.template_service import TemplateService
 from models.template import Template, TemplateUpdate
 from typing import List
+from utils.logger import configure_logging
+from utils.exceptions import VoiceToDocException, AudioProcessingError, TranscriptionError, handle_voice_to_doc_exception
+from config import settings
 
-# Logger konfigurieren
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# Logger Setup
+LOG_DIR = Path("logs")
+configure_logging(
+    log_file=LOG_DIR / "app.log",
+    level=logging.INFO
+)
 
-# Relativer Pfad von main.py aus zu den Templates
-TEMPLATE_PATH = Path("data/templates").resolve()
+# Singleton-Pattern für Logger implementieren
+def get_application_logger():
+    return logging.getLogger('application')
+
+logger = get_application_logger()
+
+# Ändere den relativen Pfad zu den Templates
+TEMPLATE_PATH = Path("../data/templates").resolve()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -34,12 +46,38 @@ async def lifespan(app: FastAPI):
     try:
         # Startup
         logger.info("Starte Anwendung...")
-        await queue_manager.start()
+        
+        # Initialisiere Komponenten
+        app.state.transcriber = Transcriber()
+        app.state.audio_processor = AudioProcessor()
+        app.state.queue_manager = TranscriptionQueueManager()
+        
+        # Starte Dienste
+        await app.state.queue_manager.start()
+        logger.info("Alle Komponenten erfolgreich initialisiert")
+        
         yield
     finally:
         # Shutdown
         logger.info("Fahre Anwendung herunter...")
-        await queue_manager.stop()
+        
+        # Cleanup der Komponenten
+        if hasattr(app.state, 'queue_manager'):
+            await app.state.queue_manager.stop()
+            
+        # Bereinige temporäre Dateien
+        if TEMP_DIR.exists():
+            for file in TEMP_DIR.glob("*"):
+                try:
+                    file.unlink()
+                except Exception as e:
+                    logger.error(f"Fehler beim Löschen von {file}: {e}")
+            try:
+                TEMP_DIR.rmdir()
+            except Exception as e:
+                logger.error(f"Fehler beim Löschen des TEMP_DIR: {e}")
+        
+        logger.info("Cleanup abgeschlossen")
 
 app = FastAPI(
     title="Voice-to-Doc API",
@@ -60,10 +98,11 @@ app = FastAPI(
 # CORS-Middleware hinzufügen
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://192.168.178.67:3000"],  # Explizit Frontend-Origin angeben
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # Temporäres Verzeichnis für Audio-Dateien
@@ -90,6 +129,15 @@ async def general_exception_handler(request, exc):
     return JSONResponse(
         status_code=500,
         content={"error": "Interner Serverfehler", "detail": str(exc)}
+    )
+
+@app.exception_handler(VoiceToDocException)
+async def voice_to_doc_exception_handler(request, exc: VoiceToDocException):
+    """Globaler Exception Handler für anwendungsspezifische Fehler"""
+    http_exc = handle_voice_to_doc_exception(exc)
+    return JSONResponse(
+        status_code=http_exc.status_code,
+        content=http_exc.detail
     )
 
 @app.post("/upload_audio", 
@@ -394,7 +442,7 @@ async def create_template(
     description: str | None = Body(None)
 ):
     try:
-        template = template_service.save_template(
+        template = await template_service.save_template(
             name=name,
             content=content,
             description=description

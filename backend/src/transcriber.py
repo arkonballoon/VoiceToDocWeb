@@ -2,14 +2,14 @@ from faster_whisper import WhisperModel
 from pathlib import Path
 import numpy as np
 from typing import Optional, List, Tuple
-import logging
+from utils.logger import get_logger
 import torch
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class Transcriber:
     def __init__(self, model_size: str = None):
-        """
+        """Whisper-Modell 'large-v3' erfolgreich geladen
         Initialisiert das Whisper-Modell.
         Verwendet standardmäßig large-v3 bei GPU und small bei CPU.
         

@@ -4,6 +4,10 @@ from typing import List, Optional
 from datetime import datetime
 import uuid
 from models.template import Template, TemplateUpdate
+from utils.logger import log_function_call
+import logging
+
+logger = logging.getLogger(__name__)
 
 class TemplateService:
     def __init__(self, storage_path: Path):
@@ -13,7 +17,8 @@ class TemplateService:
         except Exception as e:
             raise RuntimeError(f"Konnte Verzeichnis nicht erstellen: {str(e)}")
         
-    def save_template(self, name: str, content: str, description: Optional[str] = None) -> Template:
+    @log_function_call(logger)
+    async def save_template(self, name: str, content: str, description: Optional[str] = None) -> Template:
         if not name or not content:
             raise ValueError("Name und Content sind erforderlich")
             
@@ -45,8 +50,8 @@ class TemplateService:
                 
             return template
         except Exception as e:
-            print(f"Debug - Template Erstellung fehlgeschlagen: {str(e)}")
-            print(f"Debug - Template Daten: name={name}, content={content}, description={description}")
+            logger.error(f"Template Erstellung fehlgeschlagen: {str(e)}")
+            logger.debug(f"Template Daten: name={name}, content={content}, description={description}")
             raise RuntimeError(f"Fehler beim Speichern des Templates: {str(e)}")
     
     def get_templates(self) -> List[Template]:
