@@ -37,7 +37,7 @@ class HumanReadableFormatter(logging.Formatter):
     def __init__(self):
         super().__init__('%(asctime)s - %(levelname)s - %(module)s - %(message)s')
 
-def configure_logging(log_file: Path = None, level: int = logging.INFO) -> None:
+def configure_logging(log_file: Path = None, level: int = logging.DEBUG):
     """
     Zentrale Logging-Konfiguration für die gesamte Anwendung
     """
@@ -48,6 +48,7 @@ def configure_logging(log_file: Path = None, level: int = logging.INFO) -> None:
     # Console Handler mit menschenlesbarem Format
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(HumanReadableFormatter())
+    console_handler.setLevel(level)
     root_logger.addHandler(console_handler)
     
     # File Handler (optional) mit JSON Format
@@ -55,6 +56,7 @@ def configure_logging(log_file: Path = None, level: int = logging.INFO) -> None:
         log_file.parent.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(log_file)
         file_handler.setFormatter(CustomJsonFormatter())
+        file_handler.setLevel(level)
         root_logger.addHandler(file_handler)
 
 def get_logger(name: str = None):

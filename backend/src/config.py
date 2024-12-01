@@ -3,6 +3,11 @@ from pathlib import Path
 from typing import List
 import logging
 import json
+from dotenv import load_dotenv
+import os
+
+# Lade .env Datei
+load_dotenv()
 
 class Settings(BaseSettings):
     """Zentrale Konfigurationsklasse für die Anwendung"""
@@ -42,6 +47,12 @@ class Settings(BaseSettings):
     WHISPER_MODEL: str = "base"
     WHISPER_DEVICE_CUDA: str = "large-v3"
     MAX_WORKERS: int = 3
+    
+    # LLM API
+    LLM_API_KEY: str = os.getenv("LLM_API_KEY")
+    LLM_MODEL: str = "gpt-4o"  # Default-Modell
+    LLM_TEMPERATURE: float = 0.7
+    LLM_MAX_TOKENS: int = 4000
     
     def save_to_file(self):
         """Speichert die aktuelle Konfiguration in eine JSON-Datei"""
