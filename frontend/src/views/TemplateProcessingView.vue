@@ -49,6 +49,32 @@
               <p>Tokens verwendet: {{ processingResult.metadata.total_tokens }}</p>
               <p>Response ID: {{ processingResult.metadata.response_id }}</p>
             </div>
+            
+            <div v-if="processingResult.validation_result" class="validation-section">
+              <h4>Validierung:</h4>
+              <div class="validation-status">
+                <span 
+                  class="status-badge"
+                  :class="{
+                    'valid': processingResult.validation_result.is_valid,
+                    'needs-revision': processingResult.validation_result.needs_revision
+                  }"
+                >
+                  {{ processingResult.validation_result.is_valid ? 'Valide' : 'Nicht Valide' }}
+                  {{ processingResult.validation_result.needs_revision ? '- Revision benötigt' : '' }}
+                </span>
+              </div>
+              
+              <div v-if="processingResult.validation_result.revision_comments" class="revision-comments">
+                <h5>Revision Kommentare:</h5>
+                <p>{{ processingResult.validation_result.revision_comments }}</p>
+              </div>
+              
+              <div v-if="processingResult.validation_result.validation_details" class="validation-details">
+                <h5>Validierungs-Details:</h5>
+                <pre>{{ JSON.stringify(processingResult.validation_result.validation_details, null, 2) }}</pre>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -301,5 +327,59 @@ export default {
 
 .accordion-section.collapsed .accordion-header {
   border-bottom: none;
+}
+
+.validation-section {
+  margin-top: 2rem;
+  padding: 1rem;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  background-color: #fafafa;
+}
+
+.validation-status {
+  margin: 1rem 0;
+}
+
+.status-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.status-badge.valid {
+  background-color: #e6ffe6;
+  color: #006400;
+  border: 1px solid #00640033;
+}
+
+.status-badge.needs-revision {
+  background-color: #fff3e6;
+  color: #805300;
+  border: 1px solid #80530033;
+}
+
+.revision-comments {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #fff3e6;
+  border-radius: 4px;
+}
+
+.revision-comments h5 {
+  color: #805300;
+  margin-top: 0;
+}
+
+.validation-details {
+  margin-top: 1rem;
+}
+
+.validation-details pre {
+  background-color: #f5f5f5;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.9rem;
 }
 </style> 

@@ -3,6 +3,7 @@
     "serve": "vue-cli-service serve --port 3000"
   },
   "dependencies": {
-    "@vueup/vue-quill": "^1.2.0"
+    "@vueup/vue-quill": "^1.2.0",
+    "md-editor-v3": "^5.0.2"
   }
 }

@@ -34,67 +34,45 @@ class TemplateProcessor:
         max_tries=3,
         jitter=None
     )
-    def process_template(self, template_content: str, transcription: str) -> dict:
-        """
-        Verarbeitet ein Template mit der gegebenen Transkription.
-        """
+    def process_template(self, template: str, transcription: str) -> Dict[str, Any]:
+        """Verarbeitet ein Template mit der gegebenen Transkription"""
         try:
-            if not self.client.api_key:
-                raise ValueError("Kein API-Key konfiguriert")
-
-            # Log der Eingabedaten
-            logger.debug("Starte Template-Verarbeitung mit Modell %s:", settings.LLM_MODEL)
-            logger.debug("Template-Content (gekürzt): %s...", template_content[:200])
-            logger.debug("Transkription (gekürzt): %s...", transcription[:200])
-
-            # Erstelle Request-Payload für besseres Logging
-            messages = [
-                {"role": "system", "content": template_content},
-                {"role": "user", "content": transcription}
-            ]
-            logger.debug("OpenAI Request-Payload: %s", json.dumps(messages, indent=2, ensure_ascii=False))
-
-            # API-Aufruf mit Logging
-            logger.info("Sende Anfrage an OpenAI API (Modell: %s)", settings.LLM_MODEL)
-            response = self.client.chat.completions.create(
-                model=settings.LLM_MODEL,
-                messages=messages,
-                temperature=settings.LLM_TEMPERATURE,
-                max_tokens=settings.LLM_MAX_TOKENS
+            # Informationen aus der Transkription extrahieren
+            extracted_info = self._extract_information(template, transcription)
+            
+            # Template mit extrahierten Informationen füllen
+            filled_template = self._fill_template(template, extracted_info, transcription)
+            
+            # Ergebnis validieren
+            validation_result = self._validate_result(
+                template,
+                transcription,
+                extracted_info,
+                filled_template
             )
             
-            # Log der Antwort
-            logger.debug("OpenAI Antwort erhalten:")
-            logger.debug("Response-ID: %s", response.id)
-            logger.debug("Modell: %s", response.model)
-            logger.debug("Verwendete Tokens: %d", response.usage.total_tokens)
-            logger.debug("Antwort-Content: %s", response.choices[0].message.content)
+            # JSON-String in Dict umwandeln
+            validation_dict = json.loads(validation_result)
             
-            result = {
-                "processed_text": response.choices[0].message.content,
-                "status": "success",
+            return {
+                "processed_text": filled_template,
+                "extracted_info": extracted_info,
+                "validation_result": validation_dict,
                 "metadata": {
-                    "model": response.model,
-                    "total_tokens": response.usage.total_tokens,
-                    "response_id": response.id
+                    "model": settings.LLM_MODEL,
+                    "total_tokens": 0,  # TODO: Aus Response extrahieren
+                    "response_id": "test-id"  # TODO: Eindeutige ID generieren
                 }
             }
             
-            logger.info("Template-Verarbeitung erfolgreich abgeschlossen")
-            logger.debug("Rückgabe-Ergebnis: %s", json.dumps(result, indent=2, ensure_ascii=False))
-            
-            return result
-            
         except Exception as e:
-            logger.error("Fehler bei der Template-Verarbeitung: %s", str(e), exc_info=True)
-            logger.error("Template-Content (gekürzt): %s...", template_content[:100])
-            logger.error("Transkription (gekürzt): %s...", transcription[:100])
+            logger.error(f"Fehler bei der Template-Verarbeitung: {str(e)}")
             raise
     
     def _extract_information(self, template: str, transcription: str) -> Dict[str, str]:
         """Extrahiert benötigte Informationen aus der Transkription"""
         response = self.client.chat.completions.create(
-            model="gpt-4-turbo-preview",
+                model=settings.LLM_MODEL,
             messages=[
                 {"role": "system", "content": """
                     Extrahiere die im Template-Header als benötigt markierten Informationen 
@@ -117,12 +95,12 @@ class TemplateProcessor:
         context = f"Additional Context:\n{additional_context}\n\n" if additional_context else ""
         
         response = self.client.chat.completions.create(
-            model="gpt-4-turbo-preview",
+                model=settings.LLM_MODEL,
             messages=[
                 {"role": "system", "content": """
                     Fülle das Template mit den extrahierten Informationen aus.
-                    Verwende nur die gegebenen Informationen und erfinde keine zusätzlichen Details.
-                    Behalte den Stil und die Struktur des Templates bei.
+                    Verwende die gegebenen Informationen.
+                    Verwende dabei die Struktur des Templates ab ##Struktur. Ersetze den Text in den einzelnen Abschnitten durch eine Text der der Beschreibung des Abschnitts entspricht.
                 """},
                 {"role": "user", "content": f"""
                     Template:\n{template}\n\n
@@ -142,7 +120,7 @@ class TemplateProcessor:
     ) -> Dict[str, any]:
         """Validiert das ausgefüllte Template"""
         response = self.client.chat.completions.create(
-            model="gpt-4-turbo-preview",
+                model=settings.LLM_MODEL,
             messages=[
                 {"role": "system", "content": """
                     Überprüfe das ausgefüllte Template auf:
