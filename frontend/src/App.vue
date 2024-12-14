@@ -5,6 +5,7 @@
         <div class="nav-links">
           <router-link to="/" :class="{ active: $route.path === '/' }">Transkription</router-link>
           <router-link to="/templates" :class="{ active: $route.path === '/templates' }">Templates</router-link>
+          <router-link to="/process" :class="{ active: $route.path === '/process' }">Template Verarbeitung</router-link>
         </div>
         <div class="settings-icon">
           <router-link to="/config" :class="{ active: $route.path === '/config' }">

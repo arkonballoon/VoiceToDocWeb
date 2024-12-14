@@ -56,99 +56,98 @@
 </template>
 
 <script>
+import { ref, onMounted, watch } from 'vue'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
+import { useTranscriptionStore } from '@/stores/transcription'
 
 export default {
   name: 'TranscriptionService',
   components: {
     QuillEditor
   },
-  data() {
-    return {
-      selectedFile: null,
-      transcript: '',
-      confidence: null,
-      isLoading: false,
-      error: null,
-      isDragging: false,
-      editableTranscript: '',
-      toolbarOptions: [
-        ['bold', 'italic', 'underline', 'strike'],
-        ['blockquote', 'code-block'],
-        [{ 'header': 1 }, { 'header': 2 }],
-        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-        [{ 'script': 'sub'}, { 'script': 'super' }],
-        [{ 'indent': '-1'}, { 'indent': '+1' }],
-        [{ 'size': ['small', false, 'large', 'huge'] }],
-        [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-        ['clean']
-      ],
-      editorOptions: {
-        theme: 'snow',
-        modules: {
-          toolbar: [
-            ['bold', 'italic', 'underline', 'strike'],
-            ['blockquote', 'code-block'],
-            [{ 'header': 1 }, { 'header': 2 }],
-            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-            [{ 'script': 'sub'}, { 'script': 'super' }],
-            [{ 'indent': '-1'}, { 'indent': '+1' }],
-            [{ 'size': ['small', false, 'large', 'huge'] }],
-            [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
-            ['clean']
-          ]
-        }
+  setup() {
+    const transcriptionStore = useTranscriptionStore()
+    const selectedFile = ref(null)
+    const transcript = ref('')
+    const confidence = ref(null)
+    const isLoading = ref(false)
+    const error = ref(null)
+    const isDragging = ref(false)
+    const editableTranscript = ref('')
+    const toolbarOptions = [
+      ['bold', 'italic', 'underline', 'strike'],
+      ['blockquote', 'code-block'],
+      [{ 'header': 1 }, { 'header': 2 }],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      [{ 'script': 'sub'}, { 'script': 'super' }],
+      [{ 'indent': '-1'}, { 'indent': '+1' }],
+      [{ 'size': ['small', false, 'large', 'huge'] }],
+      [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+      ['clean']
+    ]
+    const editorOptions = {
+      theme: 'snow',
+      modules: {
+        toolbar: [
+          ['bold', 'italic', 'underline', 'strike'],
+          ['blockquote', 'code-block'],
+          [{ 'header': 1 }, { 'header': 2 }],
+          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+          [{ 'script': 'sub'}, { 'script': 'super' }],
+          [{ 'indent': '-1'}, { 'indent': '+1' }],
+          [{ 'size': ['small', false, 'large', 'huge'] }],
+          [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+          ['clean']
+        ]
       }
     }
-  },
-  watch: {
-    transcript: {
-      handler(newTranscript) {
-        if (newTranscript) {
-          this.editableTranscript = `<p>${newTranscript.replace(/\n/g, '</p><p>')}</p>`;
-        }
-      },
-      immediate: true
-    }
-  },
-  methods: {
-    handleFileSelect(event) {
+
+    watch(transcript, (newValue) => {
+      if (newValue) {
+        editableTranscript.value = newValue
+      }
+    })
+
+    const handleFileSelect = (event) => {
       const file = event.target.files[0]
-      if (file && this.isValidAudioFile(file)) {
-        this.selectedFile = file
-        this.error = null
+      if (file && isValidAudioFile(file)) {
+        selectedFile.value = file
+        error.value = null
       } else {
-        this.error = 'Bitte wählen Sie eine gültige Audio-Datei (WebM, WAV, MP3)'
+        error.value = 'Bitte wählen Sie eine gültige Audio-Datei (WebM, WAV, MP3)'
       }
-    },
-    handleDrop(event) {
-      this.isDragging = false
+    }
+
+    const handleDrop = (event) => {
+      isDragging.value = false
       const file = event.dataTransfer.files[0]
-      if (file && this.isValidAudioFile(file)) {
-        this.selectedFile = file
-        this.error = null
+      if (file && isValidAudioFile(file)) {
+        selectedFile.value = file
+        error.value = null
       } else {
-        this.error = 'Bitte wählen Sie eine gültige Audio-Datei (WebM, WAV, MP3)'
+        error.value = 'Bitte wählen Sie eine gültige Audio-Datei (WebM, WAV, MP3)'
       }
-    },
-    isValidAudioFile(file) {
+    }
+
+    const isValidAudioFile = (file) => {
       const validTypes = ['.webm', '.wav', '.mp3']
       return validTypes.some(type => file.name.toLowerCase().endsWith(type))
-    },
-    async uploadFile() {
-      if (!this.selectedFile) return
+    }
 
-      this.isLoading = true
-      this.error = null
-      this.transcript = ''
-      this.confidence = null
+    const uploadFile = async () => {
+      if (!selectedFile.value) return
+
+      isLoading.value = true
+      error.value = null
+      transcript.value = ''
+      confidence.value = null
 
       const formData = new FormData()
-      formData.append('file', this.selectedFile)
+      formData.append('file', selectedFile.value)
 
       try {
-        console.log('Sende Datei:', this.selectedFile.name)
+        console.log('Sende Datei:', selectedFile.value.name)
         
         const response = await fetch('http://192.168.178.67:8000/upload_audio', {
           method: 'POST',
@@ -162,20 +161,38 @@ export default {
 
         const result = await response.json()
         
-        this.transcript = result.text
-        this.confidence = result.confidence
+        transcriptionStore.setTranscription(result.text, result.confidence)
+        transcript.value = result.text
+        editableTranscript.value = result.text
+        confidence.value = result.confidence
         
       } catch (err) {
-        this.error = `Fehler: ${err.message}`
+        error.value = `Fehler: ${err.message}`
         console.error('Upload error:', err)
       } finally {
-        this.isLoading = false
+        isLoading.value = false
       }
-    },
-    handleTranscriptChange(text) {
-      // Entferne HTML-Tags für reinen Text
-      const plainText = text.replace(/<[^>]*>/g, '\n').replace(/\n{2,}/g, '\n').trim();
-      this.$emit('transcript-changed', plainText);
+    }
+
+    const handleTranscriptChange = (content) => {
+      editableTranscript.value = content
+      transcriptionStore.setTranscription(content)
+    }
+
+    return {
+      selectedFile,
+      transcript,
+      confidence,
+      isLoading,
+      error,
+      isDragging,
+      editableTranscript,
+      toolbarOptions,
+      editorOptions,
+      handleFileSelect,
+      handleDrop,
+      uploadFile,
+      handleTranscriptChange
     }
   }
 }

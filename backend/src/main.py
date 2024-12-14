@@ -21,12 +21,13 @@ from utils.logger import configure_logging
 from utils.exceptions import VoiceToDocException, AudioProcessingError, TranscriptionError, handle_voice_to_doc_exception
 from config import settings
 from pydantic import BaseModel
+from services.template_processor import TemplateProcessor, TemplateProcessingResult
 
 # Logger Setup
 LOG_DIR = Path("logs")
 configure_logging(
     log_file=LOG_DIR / "app.log",
-    level=logging.INFO
+    level=settings.LOG_LEVEL
 )
 
 # Singleton-Pattern für Logger implementieren
@@ -122,6 +123,9 @@ queue_manager = TranscriptionQueueManager(
 
 # Template-Service initialisieren
 template_service = TemplateService(storage_path=TEMPLATE_PATH)
+
+# Template-Processor mit API-Key initialisieren
+template_processor = TemplateProcessor(api_key=settings.LLM_API_KEY)
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc):
@@ -574,6 +578,35 @@ async def update_config(config_update: ConfigUpdate):
         "updated_settings": updated_settings,
         "transcriber_reloaded": needs_transcriber_reload
     }
+
+class TemplateProcessingRequest(BaseModel):
+    template_id: str
+    transcription: str
+
+@app.post("/process_template")
+def process_template(request: TemplateProcessingRequest):
+    """Verarbeitet ein Template mit der gegebenen Transkription"""
+    try:
+        template = template_service.get_template(request.template_id)
+        if not template:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Template mit ID {request.template_id} nicht gefunden"
+            )
+        
+        result = template_processor.process_template(
+            template.content,
+            request.transcription
+        )
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Fehler bei der Template-Verarbeitung: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Fehler bei der Template-Verarbeitung: {str(e)}"
+        )
 
 if __name__ == "__main__":
     import uvicorn

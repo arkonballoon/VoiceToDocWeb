@@ -104,3 +104,16 @@ class TemplateService:
         except Exception as e:
             logger.error(f"Fehler beim Aktualisieren des Templates: {str(e)}")
             raise
+    
+    def get_template(self, template_id: str) -> Optional[Template]:
+        """
+        Holt ein spezifisches Template anhand seiner ID.
+        
+        Args:
+            template_id: Die ID des gesuchten Templates
+            
+        Returns:
+            Template oder None wenn nicht gefunden
+        """
+        templates = self.get_templates()
+        return next((t for t in templates if t.id == template_id), None)

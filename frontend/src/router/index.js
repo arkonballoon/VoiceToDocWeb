@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import TranscriptionView from '../views/TranscriptionView.vue'
 import TemplateManager from '../components/TemplateManager.vue'
 import ConfigurationView from '../views/ConfigurationView.vue'
+import TemplateProcessingView from '../views/TemplateProcessingView.vue'
 
 const routes = [
   {
@@ -18,6 +19,11 @@ const routes = [
     path: '/config',
     name: 'Konfiguration',
     component: ConfigurationView
+  },
+  {
+    path: '/process',
+    name: 'process',
+    component: TemplateProcessingView
   }
 ]
 

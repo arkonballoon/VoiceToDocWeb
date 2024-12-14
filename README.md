@@ -26,22 +26,26 @@ Hauptmerkmale:
 
 - Audio-Transkription (MP3, WAV, WebM)
 - Template-Verwaltung für Textbausteine
-- Markdown-Editor für Templates
-- Echtzeit-Vorschau
+- Rich-Text-Editor für Transkriptionen
+- Template-basierte Textverarbeitung
 - Responsive Design
 
 ## Technologie-Stack
 
-- Frontend: Vue.js 3, Vue Router, MD Editor V3
-- Backend: FastAPI, SQLAlchemy
+- Frontend: Vue.js 3, Vue Router, Vue Quill, Pinia
+- Backend: FastAPI, SQLAlchemy, OpenAI
 - Datenbank: SQLite
 - API: REST
 
----
+## Voraussetzungen
 
-# Installation und Setup
+- Python 3.10 oder höher
+- Node.js 18 oder höher
+- OpenAI API Key für Template-Verarbeitung
 
-## Repository klonen
+## Installation und Setup
+
+### Repository klonen
 
 ```bash
 git clone https://github.com/arkonballoon/VoiceToDocWeb.git
@@ -58,6 +62,10 @@ cd backend
 pip install -r requirements.txt
 # PyTorch Installation (optional, wenn nicht in requirements.txt)
 bash ../install_pytorch.sh
+# Umgebungsvariablen konfigurieren
+cp .env.example .env
+# Fügen Sie Ihren OpenAI API Key in .env ein
+
 # Backend-Server starten
 cd src
 uvicorn main:app --reload
@@ -76,5 +84,18 @@ npm run dev
 Der Frontend-Server läuft dann unter `http://localhost:3000`
 
 Beide Server müssen parallel laufen, damit die Anwendung funktioniert. 
+
+## Entwicklung
+
+Das Projekt verwendet:
+- ESLint und Prettier für Code-Formatierung
+- Vue Router für Navigation
+- Pinia für State Management
+- Vue Quill für Rich-Text-Bearbeitung
+- FastAPI für RESTful API
+- SQLAlchemy für Datenbankoperationen
+- OpenAI für Template-Verarbeitung
+- Cursor.ai als IDE
+- Claude-3.5 als KI-Assistent
 
 Entwickelt als Proof of Concept für CHOP (Chat Oriented Programming)
