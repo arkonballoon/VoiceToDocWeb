@@ -1,3 +1,4 @@
+import re
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
 from utils.logger import get_logger
@@ -100,7 +101,7 @@ class TemplateProcessor:
                 {"role": "system", "content": """
                     Fülle das Template mit den extrahierten Informationen aus.
                     Verwende die gegebenen Informationen.
-                    Verwende dabei die Struktur des Templates ab ##Struktur. Ersetze den Text in den einzelnen Abschnitten durch eine Text der der Beschreibung des Abschnitts entspricht.
+                    Verwende dabei die Struktur des Templates ab ##Struktur. Ersetze den Text in den einzelnen Abschnitten durch einen Text der der Beschreibung des Abschnitts entspricht inkl. Beschreibung: und die extrahierten Informationen enthält.
                 """},
                 {"role": "user", "content": f"""
                     Template:\n{template}\n\n
@@ -109,7 +110,10 @@ class TemplateProcessor:
                 """}
             ]
         )
-        return response.choices[0].message.content
+        content = response.choices[0].message.content
+        # Entferne "Beschreibung: " am Zeilenanfang
+        cleaned_content = re.sub(r'(?m)^Beschreibung:\s*', '', content)
+        return cleaned_content
     
     def _validate_result(
         self, 

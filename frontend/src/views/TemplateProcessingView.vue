@@ -34,9 +34,32 @@
           </div>
         </div>
 
+        <div v-if="processingResult" class="template-editor-section">
+          <div class="template-header">
+            <h3>Template Ausgabe</h3>
+            <div class="validation-badge" 
+              :class="{
+                'valid': processingResult.validation_result?.is_valid,
+                'needs-revision': processingResult.validation_result?.needs_revision
+              }"
+            >
+              {{ getValidationStatus }}
+            </div>
+          </div>
+          
+          <QuillEditor
+            v-model:content="templateContent"
+            contentType="html"
+            theme="snow"
+            :toolbar="editorToolbar"
+            :readonly="true"
+            @ready="() => console.log('Editor ready with content:', templateContent)"
+          />
+        </div>
+
         <div v-if="processingResult" class="accordion-section" :class="{ 'collapsed': !showResult }">
           <div class="accordion-header" @click="toggleResult">
-            <h3>Verarbeitungsergebnis</h3>
+            <h3>Details zur Verarbeitung</h3>
             <i :class="['fas', showResult ? 'fa-chevron-up' : 'fa-chevron-down']"></i>
           </div>
           <div class="accordion-content" v-show="showResult">
@@ -111,6 +134,12 @@ export default {
     const error = ref(null)
     const showEditor = ref(true)
     const showResult = ref(true)
+    const templateContent = ref('')
+    const editorToolbar = [
+      ['bold', 'italic', 'underline'],
+      [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+      ['clean']
+    ]
 
     // Watch für Änderungen im Store
     watch(
@@ -186,6 +215,35 @@ export default {
       }
     })
 
+    // Computed property für Validierungsstatus
+    const getValidationStatus = computed(() => {
+      if (!processingResult.value?.validation_result) return ''
+      if (processingResult.value.validation_result.is_valid) return 'Valide'
+      if (processingResult.value.validation_result.needs_revision) return 'Revision benötigt'
+      return 'Nicht valide'
+    })
+
+    // Watch für processingResult
+    watch(processingResult, (newValue) => {
+      console.log('ProcessingResult changed:', newValue)
+      if (newValue?.processed_text) {
+        console.log('Processed text:', newValue.processed_text)
+        // Splitte den Text an der Struktur-Markierung
+        const parts = newValue.processed_text.split(/^\s*#+\s*struktur\s*$/im)
+        console.log('Split parts:', parts)
+        if (parts.length > 1) {
+          templateContent.value = parts[1].trim()
+          console.log('Template content set to:', templateContent.value)
+        } else {
+          console.log('No structure marker found in text')
+          templateContent.value = ''
+        }
+      } else {
+        console.log('No processed_text in result')
+        templateContent.value = ''
+      }
+    })
+
     onMounted(() => {
       loadTemplates()
     })
@@ -201,7 +259,10 @@ export default {
       showEditor,
       showResult,
       toggleEditor,
-      toggleResult
+      toggleResult,
+      templateContent,
+      editorToolbar,
+      getValidationStatus
     }
   }
 }
@@ -381,5 +442,58 @@ export default {
   border-radius: 4px;
   overflow-x: auto;
   font-size: 0.9rem;
+}
+
+.template-editor-section {
+  margin-top: 2rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+}
+
+.template-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.validation-badge {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.validation-badge.valid {
+  background-color: #e6ffe6;
+  color: #006400;
+  border: 1px solid #00640033;
+}
+
+.validation-badge.needs-revision {
+  background-color: #fff3e6;
+  color: #805300;
+  border: 1px solid #80530033;
+}
+
+.hidden {
+  display: none;
+}
+
+:deep(.ql-editor) {
+  min-height: 200px;
+  font-size: 1rem;
+  background-color: #fafafa;
+}
+
+:deep(.ql-container) {
+  border-bottom-left-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+:deep(.ql-toolbar) {
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+  background-color: #f5f5f5;
 }
 </style> 
