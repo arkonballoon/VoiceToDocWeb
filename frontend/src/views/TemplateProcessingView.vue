@@ -1,38 +1,9 @@
 <template>
   <div class="page-container">
     <div class="processing-container">
-      <div class="template-selection">
-        <label for="template-select">Template auswählen:</label>
-        <select 
-          id="template-select" 
-          v-model="selectedTemplateId"
-          class="template-select"
-        >
-          <option v-for="template in templates" :key="template.id" :value="template.id">
-            {{ template.name }}
-          </option>
-        </select>
-      </div>
 
       <div class="accordion">
-        <div class="accordion-section" :class="{ 'collapsed': !showEditor }">
-          <div class="accordion-header" @click="toggleEditor">
-            <h3>Transkription</h3>
-            <i :class="['fas', showEditor ? 'fa-chevron-up' : 'fa-chevron-down']"></i>
-          </div>
-          <div class="accordion-content" v-show="showEditor">
-            <QuillEditor
-              v-model:content="transcription"
-              contentType="text"
-              theme="snow"
-              :toolbar="[
-                ['bold', 'italic', 'underline'],
-                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                ['clean']
-              ]"
-            />
-          </div>
-        </div>
+ 
 
         <div v-if="processingResult" class="template-editor-section">
           <div class="template-header">
@@ -63,7 +34,7 @@
             <i :class="['fas', showResult ? 'fa-chevron-up' : 'fa-chevron-down']"></i>
           </div>
           <div class="accordion-content" v-show="showResult">
-            <div v-if="processingResult.processed_text" class="processed-text">
+            <!--div v-if="processingResult.processed_text" class="processed-text">
               {{ processingResult.processed_text }}
             </div>
             <div v-if="processingResult.metadata" class="metadata">
@@ -71,7 +42,7 @@
               <p>Modell: {{ processingResult.metadata.model }}</p>
               <p>Tokens verwendet: {{ processingResult.metadata.total_tokens }}</p>
               <p>Response ID: {{ processingResult.metadata.response_id }}</p>
-            </div>
+            </div-->
             
             <div v-if="processingResult.validation_result" class="validation-section">
               <h4>Validierung:</h4>
@@ -95,11 +66,74 @@
               
               <div v-if="processingResult.validation_result.validation_details" class="validation-details">
                 <h5>Validierungs-Details:</h5>
-                <pre>{{ JSON.stringify(processingResult.validation_result.validation_details, null, 2) }}</pre>
+                <table class="validation-table">
+                  <thead>
+                    <tr>
+                      <th>Eigenschaft</th>
+                      <th>Wert</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(value, key) in processingResult.validation_result.validation_details" :key="key">
+                      <td>{{ key }}</td>
+                      <td>
+                        <span v-if="typeof value === 'boolean'">
+                          {{ value ? '✓' : '✗' }}
+                        </span>
+                        <span v-else-if="Array.isArray(value)">
+                          {{ value.join(', ') }}
+                        </span>
+                        <span v-else-if="typeof value === 'object'">
+                          <table>
+                            <tbody>
+                              <tr v-for="(subValue, subKey) in value" :key="subKey">
+                                <td>{{ subKey }}</td>
+                                <td>{{ subValue }}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </span>
+                        <span v-else>
+                          {{ value }}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
         </div>
+        <div class="accordion-section" :class="{ 'collapsed': !showEditor }">
+          <div class="accordion-header" @click="toggleEditor">
+            <h3>Transkription</h3>
+            <i :class="['fas', showEditor ? 'fa-chevron-up' : 'fa-chevron-down']"></i>
+          </div>
+          <div class="accordion-content" v-show="showEditor">
+            <QuillEditor
+              v-model:content="transcription"
+              contentType="text"
+              theme="snow"
+              :toolbar="[
+                ['bold', 'italic', 'underline'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['clean']
+              ]"
+            />
+          </div>
+        </div>        
+      </div>
+      <div class="template-selection">
+        <label for="template-select">Template auswählen:</label>
+        <select 
+          id="template-select" 
+          v-model="selectedTemplateId"
+          class="template-select"
+        >
+          <option v-for="template in templates" :key="template.id" :value="template.id">
+            {{ template.name }}
+          </option>
+        </select>
       </div>
 
       <button 
