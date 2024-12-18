@@ -5,8 +5,8 @@ sqlalchemy==2.0.25
 pydantic==2.5.3
 openai==1.8.0
 python-dotenv==1.0.0
-torch==2.1.2
-torchaudio==2.1.2
 transformers==4.36.2
 numpy==1.26.3
 soundfile==0.12.1 
+faster_whisper
+ pydantic-settings

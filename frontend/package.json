@@ -11,7 +11,9 @@
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.5.1",
     "@vueup/vue-quill": "^1.2.0",
+    "md-editor-v3": "^5.1.1",
     "pinia": "^2.1.7",
+    "recordrtc": "^5.6.2",
     "vue": "^3.4.15",
     "vue-router": "^4.2.5"
   },

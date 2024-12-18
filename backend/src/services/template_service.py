@@ -9,6 +9,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+class TemplateNotFoundError(Exception):
+    """Ausnahme, die ausgelöst wird, wenn ein Template nicht gefunden wird."""
+    pass
+
 class TemplateService:
     def __init__(self, storage_path: Path):
         self.storage_path = storage_path

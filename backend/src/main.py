@@ -14,14 +14,14 @@ from queue_manager import TranscriptionQueueManager
 import json
 import backoff
 from contextlib import asynccontextmanager
-from services.template_service import TemplateService
+from services.template_service import TemplateService, TemplateNotFoundError
 from models.template import Template, TemplateUpdate
 from typing import List
 from utils.logger import configure_logging
 from utils.exceptions import VoiceToDocException, AudioProcessingError, TranscriptionError, handle_voice_to_doc_exception
 from config import settings
 from pydantic import BaseModel
-from services.template_processor import TemplateProcessor, TemplateProcessingResult
+from services.template_processor import TemplateProcessor
 
 # Logger Setup
 LOG_DIR = Path("logs")
