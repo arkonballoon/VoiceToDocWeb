@@ -94,7 +94,6 @@ class Settings(BaseSettings):
         
 # Globale Konfigurationsinstanz
 settings = Settings()
-
 # Erstelle notwendige Verzeichnisse
 for directory in [settings.DATA_DIR, settings.TEMP_DIR, settings.LOG_DIR, settings.TEMPLATE_DIR]:
     directory.mkdir(parents=True, exist_ok=True) 
