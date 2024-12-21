@@ -25,23 +25,28 @@ Hauptmerkmale:
 ## Features
 
 - Audio-Transkription (MP3, WAV, WebM)
-- Template-Verwaltung für Textbausteine
-- Rich-Text-Editor für Transkriptionen
-- Template-basierte Textverarbeitung
-- Responsive Design
+- Live-Audioe mit Echtzeit-Transkription
+ Template-Verwaltung für Textbausteine
+ Rich-Text-Editor für Transkriptionen
+ Template-basierte Textverarbeitung mit GPT-4
+ Responsive Design
+ Docker-Support für einfache Deployment
+ Automatische Modellauswahl (CPU/CUDA)
+ Konfigurierbare Whisper-Modelle
+ Fortschrittsanzeige bei der Verarbeitung
 
 ## Technologie-Stack
 
 - Frontend: Vue.js 3, Vue Router, Vue Quill, Pinia
-- Backend: FastAPI, SQLAlchemy, OpenAI
-- Datenbank: SQLite
-- API: REST
+ Backend: FastAPI, Whisper, OpenAI
+ Container: Docker, Docker Compose
+ API: REST + WebSocket für Live-Streaming
 
 ## Voraussetzungen
 
-- Python 3.10 oder höher
-- Node.js 18 oder höher
-- OpenAI API Key für Template-Verarbeitung
+- Docker und Docker Compose
+ OpenAI API Key für Template-Verarbeitung
+ NVIDIA GPU (optional) für beschleunigte Transkription
 
 ## Installation und Setup
 
@@ -49,9 +54,26 @@ Hauptmerkmale:
 
 ```bash
 git clone https://github.com/arkonballoon/VoiceToDocWeb.git
+cd VoiceToDocWeb
 ```
 
-## Backend
+### Umgebungsvariablen konfigurieren
+
+```bash
+cp .env.example .env
+```
+OpenAI API Key in .env eintragen
+
+### Container starten
+
+```bash
+docker-compose up -d
+Frontend: http://localhost:3000
+Backend API: http://localhost:8000
+```
+## Manuelles Starten
+### Backend
+
 ```bash
 # Python Virtual Environment erstellen und aktivieren
 python -m venv venv
@@ -92,10 +114,21 @@ Das Projekt verwendet:
 - Vue Router für Navigation
 - Pinia für State Management
 - Vue Quill für Rich-Text-Bearbeitung
-- FastAPI für RESTful API
-- SQLAlchemy für Datenbankoperationen
-- OpenAI für Template-Verarbeitung
+- FastAPI für RESTful API und WebSocket
+- Whisper für Spracherkennung
+- OpenAI GPT-4 für Template-Verarbeitung
+- Docker für Containerisierung
+- WebRTC für Audio-Streaming
 - Cursor.ai als IDE
 - Claude-3.5 als KI-Assistent
+
+## Konfiguration
+
+Die Anwendung kann über die Web-Oberfläche oder die `config.json` konfiguriert werden:
+- Whisper-Modellgröße (tiny bis large-v3)
+- Audio-Parameter (Silence Detection, Chunk Size)
+- Worker-Anzahl für parallele Verarbeitung
+- GPU/CPU Modellauswahl
+- Template-Verarbeitung Parameter
 
 Entwickelt als Proof of Concept für CHOP (Chat Oriented Programming)

@@ -6,6 +6,8 @@ import json
 from functools import wraps
 import traceback
 import asyncio
+import functools
+import inspect
 
 class CustomJsonFormatter(logging.Formatter):
     def __init__(self):
@@ -76,33 +78,39 @@ def get_logger(name: str = None):
     
     return logger
 
-def log_function_call(logger: logging.Logger):
-    """
-    Decorator für Funktions-Logging
-    """
-    def decorator(func):
-        @wraps(func)
-        async def async_wrapper(*args, **kwargs):
-            logger.debug(f"Calling {func.__name__} with args={args}, kwargs={kwargs}")
-            try:
-                result = await func(*args, **kwargs)
-                logger.debug(f"{func.__name__} completed successfully")
-                return result
-            except Exception as e:
-                logger.error(f"Error in {func.__name__}: {str(e)}", exc_info=True)
-                raise
-                
-        @wraps(func)
-        def sync_wrapper(*args, **kwargs):
-            logger.debug(f"Calling {func.__name__} with args={args}, kwargs={kwargs}")
-            try:
-                result = func(*args, **kwargs)
-                logger.debug(f"{func.__name__} completed successfully")
-                return result
-            except Exception as e:
-                logger.error(f"Error in {func.__name__}: {str(e)}", exc_info=True)
-                raise
-                
-        return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
-    return decorator
+# Logger für dieses Modul erstellen
+logger = logging.getLogger(__name__)
+
+def log_function_call(func=None, logger=None):
+    """Decorator zum Loggen von Funktionsaufrufen"""
+    if func is None:
+        return lambda f: log_function_call(f, logger)
+        
+    _logger = logger or logging.getLogger(func.__module__)
+    
+    @functools.wraps(func)
+    async def async_wrapper(*args, **kwargs):
+        name = func.__name__ if hasattr(func, '__name__') else str(func)
+        _logger.debug(f"Aufruf von {name} mit args={args}, kwargs={kwargs}")
+        try:
+            result = await func(*args, **kwargs)
+            return result
+        except Exception as e:
+            _logger.error(f"Fehler in {name}: {str(e)}")
+            raise
+
+    @functools.wraps(func)
+    def sync_wrapper(*args, **kwargs):
+        name = func.__name__ if hasattr(func, '__name__') else str(func)
+        _logger.debug(f"Aufruf von {name} mit args={args}, kwargs={kwargs}")
+        try:
+            result = func(*args, **kwargs)
+            return result
+        except Exception as e:
+            _logger.error(f"Fehler in {name}: {str(e)}")
+            raise
+
+    if inspect.iscoroutinefunction(func):
+        return async_wrapper
+    return sync_wrapper
 

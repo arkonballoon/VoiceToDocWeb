@@ -22,6 +22,7 @@ from utils.exceptions import VoiceToDocException, AudioProcessingError, Transcri
 from config import settings
 from pydantic import BaseModel
 from services.template_processor import TemplateProcessor
+import math
 
 # Logger Setup
 LOG_DIR = Path("logs")
@@ -37,7 +38,8 @@ def get_application_logger():
 logger = get_application_logger()
 
 # Ändere den relativen Pfad zu den Templates
-TEMPLATE_PATH = Path("../data/templates").resolve()
+TEMPLATE_PATH = Path("/app/data/templates")
+TEMPLATE_PATH.mkdir(parents=True, exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -122,7 +124,7 @@ queue_manager = TranscriptionQueueManager(
 )
 
 # Template-Service initialisieren
-template_service = TemplateService(storage_path=TEMPLATE_PATH)
+template_service = TemplateService(storage_path=settings.TEMPLATE_DIR)
 
 # Template-Processor mit API-Key initialisieren
 template_processor = TemplateProcessor(api_key=settings.LLM_API_KEY)
@@ -145,10 +147,26 @@ async def voice_to_doc_exception_handler(request, exc: VoiceToDocException):
         content=http_exc.detail
     )
 
+class AudioUploadResponse(JSONResponse):
+    def render(self, content: dict) -> bytes:
+        def sanitize_content(obj):
+            if isinstance(obj, dict):
+                return {k: sanitize_content(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [sanitize_content(x) for x in obj]
+            elif isinstance(obj, float):
+                if math.isnan(obj) or math.isinf(obj):
+                    return 0.0
+                return obj
+            return obj
+            
+        sanitized_content = sanitize_content(content)
+        return super().render(sanitized_content)
+
 @app.post("/upload_audio", 
     tags=["Audio"],
     summary="Audio-Datei hochladen und transkribieren",
-    response_model=dict,
+    response_class=AudioUploadResponse,
     responses={
         200: {
             "description": "Erfolgreiche Transkription",
@@ -456,9 +474,18 @@ async def create_template(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/templates/", response_model=list[Template])
+@app.get("/templates/", response_model=List[Template])
 async def get_templates():
-    return template_service.get_templates()
+    """Gibt alle verfügbaren Templates zurück"""
+    try:
+        templates = template_service.get_templates()
+        return templates  # Dies muss eine Liste von Template-Objekten sein
+    except Exception as e:
+        logger.error(f"Fehler beim Abrufen der Templates: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Fehler beim Abrufen der Templates: {str(e)}"
+        )
 
 @app.delete("/templates/{template_id}")
 async def delete_template(template_id: str):

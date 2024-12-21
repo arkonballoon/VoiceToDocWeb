@@ -74,7 +74,11 @@ class Transcriber:
             text = " ".join([segment.text for segment in segments])
             
             # Durchschnittliche Konfidenz berechnen
-            confidence = np.mean([segment.avg_logprob for segment in segments]) if segments else 0.0
+            # Nur berechnen wenn Segmente vorhanden sind
+            if segments:
+                confidence = np.mean([segment.avg_logprob for segment in segments])
+            else:
+                confidence = 0.0
             
             logger.info(f"Transkription erfolgreich: {len(text)} Zeichen")
             return text.strip(), confidence

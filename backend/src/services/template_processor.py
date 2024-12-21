@@ -1,7 +1,7 @@
 import re
 from typing import Dict, List, Optional, Any
 from pydantic import BaseModel
-from utils.logger import get_logger
+from utils.logger import get_logger, log_function_call
 import backoff
 from openai import OpenAI
 import logging
@@ -29,6 +29,7 @@ class TemplateProcessor:
         logger.info("TemplateProcessor initialisiert mit API-Key: %s...", api_key[:8])
         logger.info("Verwende LLM-Modell: %s", settings.LLM_MODEL)
     
+    @log_function_call
     @backoff.on_exception(
         backoff.expo,
         Exception,
@@ -133,13 +134,22 @@ class TemplateProcessor:
                     3. Einhaltung der Template-Struktur
                     4. Konsistenz mit der Original-Transkription
                     
-                    Gib das Ergebnis als JSON zurück mit:
+                   Gib das Ergebnis als JSON zurück mit exakt dieser Struktur:
                     {
-                        "is_valid": bool,
-                        "needs_revision": bool,
+                        "is_valid": boolean,
+                        "needs_revision": boolean,
                         "revision_comments": string,
-                        "validation_details": object
+                        "validation_details": {
+                            "completeness_score": number (0.0 to 1.0),
+                            "structure_score": number (0.0 to 1.0),
+                            "consistency_score": number (0.0 to 1.0),
+                            "missing_fields": string[],
+                            "structure_issues": string[],
+                            "consistency_issues": string[]
+                        }
                     }
+                     Wichtig: Alle numerischen Werte müssen zwischen 0.0 und 1.0 liegen.
+                    Arrays können leer sein, aber müssen immer als Array existieren.
                 """},
                 {"role": "user", "content": f"""
                     Original Template:\n{template}\n\n

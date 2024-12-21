@@ -9,6 +9,8 @@ from pathlib import Path
 from transcriber import Transcriber
 import time
 from utils.logger import get_logger, log_function_call
+from fastapi.responses import JSONResponse
+import math
 
 logger = get_logger(__name__)
 
@@ -64,7 +66,7 @@ class TranscriptionQueueManager:
         self._worker_id = (self._worker_id + 1) % self.max_workers
         return self._worker_id
         
-    @log_function_call(logger)
+    @log_function_call
     async def start(self):
         """Startet die Worker-Tasks"""
         for worker_id in range(self.max_workers):
@@ -74,7 +76,7 @@ class TranscriptionQueueManager:
             self.workers.append(worker)
         logger.info(f"{self.max_workers} Transkriptions-Worker gestartet")
 
-    @log_function_call(logger)
+    @log_function_call
     async def stop(self):
         """Stoppt alle Worker-Tasks"""
         for worker in self.workers:
@@ -103,7 +105,7 @@ class TranscriptionQueueManager:
             average_chunk_time=avg_chunk_time
         )
 
-    @log_function_call(logger)
+    @log_function_call()
     async def add_task(
         self, 
         audio_data: bytes, 
@@ -154,7 +156,7 @@ class TranscriptionQueueManager:
         
         return task_id
 
-    @log_function_call(logger)
+    @log_function_call()
     async def _transcribe_audio(
         self,
         worker_id: int,
@@ -234,9 +236,15 @@ class TranscriptionQueueManager:
                         })
                     
                     # Ergebnis speichern
+                    def sanitize_confidence(conf):
+                        if isinstance(conf, float):
+                            if math.isnan(conf) or math.isinf(conf):
+                                return 0.0
+                        return conf
+
                     task.result = {
                         "text": text,
-                        "confidence": confidence,
+                        "confidence": sanitize_confidence(confidence),
                         "processing_time": time.time() - task.start_time
                     }
                     task.status = "completed"
@@ -277,3 +285,19 @@ class TranscriptionQueueManager:
                 break
             except Exception as e:
                 logger.error(f"Unerwarteter Fehler in Worker {worker_id}: {str(e)}") 
+
+class AudioUploadResponse(JSONResponse):
+    def render(self, content: dict) -> bytes:
+        def sanitize_content(obj):
+            if isinstance(obj, dict):
+                return {k: sanitize_content(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [sanitize_content(x) for x in obj]
+            elif isinstance(obj, float):
+                if math.isnan(obj) or math.isinf(obj):
+                    return 0.0
+                return obj
+            return obj
+            
+        sanitized_content = sanitize_content(content)
+        return super().render(sanitized_content) 

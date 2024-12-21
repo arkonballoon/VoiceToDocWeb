@@ -9,6 +9,10 @@ import os
 # Lade .env Datei
 load_dotenv()
 
+if not os.getenv("LLM_API_KEY"):
+    logger.error("LLM_API_KEY nicht in .env Datei gefunden")
+    raise ValueError("LLM_API_KEY muss in der .env Datei gesetzt sein")
+
 class Settings(BaseSettings):
     """Zentrale Konfigurationsklasse für die Anwendung"""
     
@@ -16,10 +20,13 @@ class Settings(BaseSettings):
     APP_NAME: str = "VoiceToDoc"
     DEBUG: bool = False
     
-    # Pfade
-    DATA_DIR: Path = Path("data")
-    TEMP_DIR: Path = Path("temp")
-    LOG_DIR: Path = Path("logs")
+    # Basis-Pfad
+    BASE_DIR: Path = Path("/app")
+    
+    # Abgeleitete Pfade
+    DATA_DIR: Path = BASE_DIR / "data"
+    TEMP_DIR: Path = DATA_DIR / "temp"
+    LOG_DIR: Path = DATA_DIR / "logs"
     TEMPLATE_DIR: Path = DATA_DIR / "templates"
     CONFIG_FILE: Path = DATA_DIR / "config.json"
     
@@ -30,10 +37,7 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
-        "http://localhost:5173",
         "http://192.168.178.67:3000",
-        "http://192.168.178.67:5173",
-        "http://127.0.0.1:5173",
         "http://127.0.0.1:3000"
     ]
     

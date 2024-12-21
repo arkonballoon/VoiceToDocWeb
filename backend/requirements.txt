@@ -3,10 +3,12 @@ uvicorn==0.27.0
 python-multipart==0.0.6
 sqlalchemy==2.0.25
 pydantic==2.5.3
-openai==1.8.0
+openai
 python-dotenv==1.0.0
 transformers==4.36.2
 numpy==1.26.3
 soundfile==0.12.1 
 faster_whisper
- pydantic-settings
+pydantic-settings
+pydub
+backoff

@@ -15,63 +15,87 @@ class TemplateNotFoundError(Exception):
 
 class TemplateService:
     def __init__(self, storage_path: Path):
-        self.storage_path = storage_path
-        try:
-            self.storage_path.mkdir(parents=True, exist_ok=True)
-        except Exception as e:
-            raise RuntimeError(f"Konnte Verzeichnis nicht erstellen: {str(e)}")
+        self.storage_path = Path(storage_path)
+        self.storage_path.mkdir(parents=True, exist_ok=True)
+        self.templates_file = self.storage_path / "templates.json"
         
-    @log_function_call(logger)
-    async def save_template(self, name: str, content: str, description: Optional[str] = None) -> Template:
-        if not name or not content:
-            raise ValueError("Name und Content sind erforderlich")
+        logger.info(f"Template Service initialisiert mit Pfad: {self.storage_path}")
+        
+        # Initialisiere templates.json mit existierenden Template-Dateien
+        if not self.templates_file.exists() or self._is_empty_json(self.templates_file):
+            logger.info(f"Initialisiere templates.json in {self.templates_file}")
+            existing_templates = []
             
-        try:
-            template = Template(
-                id=str(uuid.uuid4()),
-                name=name,
-                content=content,
-                description=description,
-                created_at=datetime.now()
-            )
-            
-            # Erstelle JSON-Daten
-            template_data = template.dict()
-            json_data = json.dumps(template_data, default=str, ensure_ascii=False)
-            
-            # Überprüfe, ob das JSON gültig ist
-            try:
-                json.loads(json_data)
-            except json.JSONDecodeError as je:
-                raise RuntimeError(f"Ungültiges JSON-Format: {str(je)}")
-            
-            # Speichere die Datei
-            template_path = self.storage_path / f"{template.id}.json"
-            try:
-                template_path.write_text(json_data, encoding='utf-8')
-            except IOError as ioe:
-                raise RuntimeError(f"Fehler beim Schreiben der Datei: {str(ioe)}")
-                
-            return template
-        except Exception as e:
-            logger.error(f"Template Erstellung fehlgeschlagen: {str(e)}")
-            logger.debug(f"Template Daten: name={name}, content={content}, description={description}")
-            raise RuntimeError(f"Fehler beim Speichern des Templates: {str(e)}")
-    
-    def get_templates(self) -> List[Template]:
-        templates = []
-        try:
+            # Suche nach .json Dateien im Verzeichnis
             for file in self.storage_path.glob("*.json"):
-                try:
-                    data = json.loads(file.read_text(encoding='utf-8'))
-                    templates.append(Template(**data))
-                except json.JSONDecodeError as e:
-                    print(f"Fehler beim Dekodieren von {file}: {str(e)}")
-                    continue  # Überspringt die fehlerhafte Datei
-            return templates
-        except Exception as e:
-            raise RuntimeError(f"Fehler beim Laden der Templates: {str(e)}")
+                if file.name != "templates.json":
+                    try:
+                        with open(file, 'r', encoding='utf-8') as f:
+                            template_data = json.load(f)
+                            logger.info(f"Gefundenes Template in {file}: {template_data.get('name', 'Unbekannt')}")
+                            existing_templates.append(template_data)
+                    except Exception as e:
+                        logger.error(f"Fehler beim Laden von {file}: {str(e)}")
+            
+            logger.info(f"Gefundene Template-Dateien: {len(existing_templates)}")
+            
+            # Speichere gefundene Templates
+            with open(self.templates_file, 'w', encoding='utf-8') as f:
+                json.dump(existing_templates, f, indent=4, ensure_ascii=False)
+
+    def _is_empty_json(self, file_path: Path) -> bool:
+        """Prüft ob die JSON-Datei leer ist oder nur ein leeres Array enthält"""
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = json.load(f)
+                return len(content) == 0
+        except:
+            return True
     
+    @log_function_call
+    def save_template(self, name: str, content: str, description: Optional[str] = None) -> Template:
+        """Speichert ein neues Template"""
+        now = datetime.now().isoformat()
+        template_id = str(uuid.uuid4())
+        
+        template_data = {
+            "id": template_id,
+            "name": name,
+            "content": content,
+            "description": description or "",
+            "created_at": now,
+            "updated_at": now
+        }
+        
+        # Speichere Template in separater Datei
+        template_path = self.storage_path / f"{template_id}.json"
+        with open(template_path, 'w', encoding='utf-8') as f:
+            json.dump(template_data, f, indent=4, ensure_ascii=False)
+            
+        # Aktualisiere templates.json
+        templates = self.get_templates()
+        templates.append(Template(**template_data))
+        
+        with open(self.templates_file, 'w', encoding='utf-8') as f:
+            json.dump([t.dict() for t in templates], f, indent=4, ensure_ascii=False)
+            
+        return Template(**template_data)
+    
+    @log_function_call
+    def get_templates(self) -> List[Template]:
+        """Gibt alle verfügbaren Templates zurück."""
+        logger.debug(f"Lade Templates aus: {self.templates_file}")
+        try:
+            with open(self.templates_file, 'r', encoding='utf-8') as f:
+                templates_data = json.load(f)
+                templates = [Template(**t) for t in templates_data]
+                logger.info(f"Gefundene Templates: {len(templates)}")
+                return templates
+        except Exception as e:
+            logger.error(f"Fehler beim Laden der Templates: {str(e)}")
+            return []
+    
+    @log_function_call
     def delete_template(self, template_id: str) -> bool:
         template_file = self.storage_path / f"{template_id}.json"
         if template_file.exists():
@@ -79,6 +103,7 @@ class TemplateService:
             return True
         return False 
     
+    @log_function_call
     def update_template(self, template_id: str, template_update: TemplateUpdate) -> Template:
         """Aktualisiert ein bestehendes Template"""
         template_path = self.storage_path / f"{template_id}.json"

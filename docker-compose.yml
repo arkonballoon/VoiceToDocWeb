@@ -1,0 +1,29 @@
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/src:/app/src
+      - ./backend/data/templates:/app/data/templates
+      - ./backend/.env:/app/src/.env
+    environment:
+      - PYTHONPATH=/app/src
+      - LOG_LEVEL=20
+      - 'ALLOWED_ORIGINS=["http://localhost:3000","http://frontend:3000","http://192.168.178.67:3000"]'
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend

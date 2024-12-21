@@ -29,23 +29,28 @@ Key features:
 ## Features
 
 - Audio transcription (MP3, WAV, WebM)
-- Template management for text modules
-- Rich-text editor for transcriptions
-- Template-based text processing
+- Live audio recording with real-time transcription
+- Template management for text blocks
+- Rich text editor for transcriptions
+- Template-based text processing with GPT-4
 - Responsive design
+- Docker support for easy deployment
+- Automatic model selection (CPU/CUDA)
+- Configurable Whisper models
+- Progress indication during processing
 
 ## Technology Stack
 
 - Frontend: Vue.js 3, Vue Router, Vue Quill, Pinia
-- Backend: FastAPI, SQLAlchemy, OpenAI
-- Database: SQLite
-- API: REST
+- Backend: FastAPI, Whisper, OpenAI
+- Container: Docker, Docker Compose
+- API: REST + WebSocket for live streaming
 
-## Requirements
+## Prerequisites
 
-- Python 3.10 or higher
-- Node.js 18 or higher
+- Docker and Docker Compose
 - OpenAI API Key for template processing
+- NVIDIA GPU (optional) for accelerated transcription
 
 ## Installation and Setup
 
@@ -53,7 +58,21 @@ Key features:
 
 ```bash
 git clone https://github.com/arkonballoon/VoiceToDocWeb.git
+cd VoiceToDocWeb
 ```
+### Configure environment variables
+
+```bash
+cp .env.example .env
+Add OpenAI API Key to .env
+```
+
+### Start containers
+
+```bash
+docker-compose up -d
+```
+## Manual Installation
 
 ### Backend
 ```bash
@@ -92,19 +111,28 @@ Both servers must run in parallel for the application to function.
 
 ## Development
 
-This project uses:
+The project uses:
 - ESLint and Prettier for code formatting
 - Vue Router for navigation
 - Pinia for state management
-- Vue Quill for rich-text editing
-- FastAPI for RESTful API
-- SQLAlchemy for database operations
-- OpenAI for template processing
+- Vue Quill for rich text editing
+- FastAPI for RESTful API and WebSocket
+- Whisper for speech recognition
+- OpenAI GPT-4 for template processing
+- Docker for containerization
+- WebRTC for audio streaming
 - Cursor.ai as IDE
 - Claude-3.5 as AI assistant
 
+## Configuration
+
+The application can be configured via the web interface or `config.json`:
+- Whisper model size (tiny to large-v3)
+- Audio parameters (silence detection, chunk size)
+- Worker count for parallel processing
+- GPU/CPU model selection
+- Template processing parameters
+
+
 Developed as a proof of concept for CHOP (Chat Oriented Programming)
 
---- 
-
-Let me know if you'd like further assistance!
