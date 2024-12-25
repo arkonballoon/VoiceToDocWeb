@@ -54,7 +54,8 @@ class Settings(BaseSettings):
     
     # LLM API
     LLM_API_KEY: str = os.getenv("LLM_API_KEY")
-    LLM_MODEL: str = "gpt-4o"  # Default-Modell
+    LLM_MODEL: str = "gpt-4o"  # Für komplexe Aufgaben
+    LLM_MODEL_LIGHT: str = "gpt-4o-mini"  # Für einfache Textformatierung
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 4000
     

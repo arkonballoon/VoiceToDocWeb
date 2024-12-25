@@ -1,6 +1,20 @@
 <template>
   <div class="page-container">
     <div class="processing-container">
+      <!-- Fortschrittsanzeige -->
+      <div v-if="isProcessing" class="progress-container">
+        <div class="progress-bar">
+          <div 
+            class="progress-fill" 
+            :style="{ width: `${progress * 100}%` }"
+            :class="{ 'error': status === 'error' }"
+          ></div>
+        </div>
+        <div class="progress-status">
+          <span class="progress-message">{{ progressMessage }}</span>
+          <span class="progress-percentage">{{ Math.round(progress * 100) }}%</span>
+        </div>
+      </div>
 
       <div class="accordion">
  
@@ -81,17 +95,13 @@
                           {{ value ? '✓' : '✗' }}
                         </span>
                         <span v-else-if="Array.isArray(value)">
-                          {{ value.join(', ') }}
+                          <ul v-if="value.length > 0" class="issue-list">
+                            <li v-for="(item, index) in value" :key="index">{{ item }}</li>
+                          </ul>
+                          <span v-else>Keine Einträge</span>
                         </span>
-                        <span v-else-if="typeof value === 'object'">
-                          <table>
-                            <tbody>
-                              <tr v-for="(subValue, subKey) in value" :key="subKey">
-                                <td>{{ subKey }}</td>
-                                <td>{{ subValue }}</td>
-                              </tr>
-                            </tbody>
-                          </table>
+                        <span v-else-if="typeof value === 'number'">
+                          {{ (value * 100).toFixed(1) }}%
                         </span>
                         <span v-else>
                           {{ value }}
@@ -100,6 +110,23 @@
                     </tr>
                   </tbody>
                 </table>
+              </div>
+
+              <div v-if="processingResult.validation_result.improvement_suggestions" class="improvement-suggestions">
+                <h5>Verbesserungsvorschläge</h5>
+                <div class="general-feedback">
+                  <h6>Allgemeines Feedback:</h6>
+                  <p>{{ processingResult.validation_result.improvement_suggestions.general_feedback }}</p>
+                </div>
+                <div class="specific-suggestions">
+                  <h6>Spezifische Vorschläge:</h6>
+                  <ul class="suggestion-list">
+                    <li v-for="(suggestion, index) in processingResult.validation_result.improvement_suggestions.specific_suggestions" 
+                        :key="index">
+                      {{ suggestion }}
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
@@ -148,10 +175,11 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { useTranscriptionStore } from '@/stores/transcription'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
+import { v4 as uuidv4 } from 'uuid'
 
 export default {
   name: 'TemplateProcessingView',
@@ -175,6 +203,11 @@ export default {
       ['clean']
     ]
 
+    const progress = ref(0)
+    const progressMessage = ref('')
+    const status = ref('')
+    const ws = ref(null)
+    
     // Watch für Änderungen im Store
     watch(
       () => transcriptionStore.transcription,
@@ -196,11 +229,60 @@ export default {
       }
     }
 
+    const connectWebSocket = (processId) => {
+      const wsUrl = `ws://localhost:8000/ws/template_processing/${processId}`
+      ws.value = new WebSocket(wsUrl)
+      
+      ws.value.onmessage = (event) => {
+        const update = JSON.parse(event.data)
+        progress.value = update.progress
+        progressMessage.value = update.message
+        status.value = update.status
+        
+        if (update.status === 'completed') {
+          loadProcessingResult(processId)
+        }
+      }
+      
+      ws.value.onerror = (error) => {
+        console.error('WebSocket Fehler:', error)
+        error.value = 'Verbindungsfehler bei der Template-Verarbeitung'
+      }
+      
+      // Heartbeat senden
+      const heartbeat = setInterval(() => {
+        if (ws.value && ws.value.readyState === WebSocket.OPEN) {
+          ws.value.send('ping')
+        }
+      }, 30000)
+      
+      ws.value.onclose = () => {
+        clearInterval(heartbeat)
+      }
+    }
+    
+    const loadProcessingResult = async (processId) => {
+      try {
+        const response = await fetch(`http://localhost:8000/process_template/${processId}`)
+        if (!response.ok) {
+          throw new Error('Fehler beim Abrufen des Ergebnisses')
+        }
+        processingResult.value = await response.json()
+      } catch (err) {
+        console.error('Fehler:', err)
+        error.value = 'Fehler beim Abrufen des Verarbeitungsergebnisses'
+      } finally {
+        isProcessing.value = false // Status zurücksetzen
+      }
+    }
+    
     const processTemplate = async () => {
       if (!selectedTemplateId.value || !transcription.value) return
       
       isProcessing.value = true
       error.value = null
+      progress.value = 0
+      progressMessage.value = 'Initialisiere Verarbeitung...'
       
       try {
         const response = await fetch('http://localhost:8000/process_template', {
@@ -218,12 +300,12 @@ export default {
           throw new Error('Fehler bei der Verarbeitung')
         }
 
-        processingResult.value = await response.json()
-        console.log('Verarbeitungsergebnis:', processingResult.value) // Debug-Log
+        const { process_id } = await response.json()
+        connectWebSocket(process_id)
+        
       } catch (error) {
         console.error('Fehler:', error)
         error.value = error.message
-      } finally {
         isProcessing.value = false
       }
     }
@@ -282,6 +364,12 @@ export default {
       loadTemplates()
     })
 
+    onUnmounted(() => {
+      if (ws.value) {
+        ws.value.close()
+      }
+    })
+
     return {
       templates,
       selectedTemplateId,
@@ -296,7 +384,10 @@ export default {
       toggleResult,
       templateContent,
       editorToolbar,
-      getValidationStatus
+      getValidationStatus,
+      progress,
+      progressMessage,
+      status
     }
   }
 }
@@ -529,5 +620,117 @@ export default {
   border-top-left-radius: 4px;
   border-top-right-radius: 4px;
   background-color: #f5f5f5;
+}
+
+.issue-list {
+  margin: 0;
+  padding-left: 20px;
+  list-style-type: disc;
+}
+
+.improvement-suggestions {
+  margin-top: 2rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+}
+
+.general-feedback {
+  margin-bottom: 1.5rem;
+}
+
+.general-feedback h6 {
+  color: #495057;
+  margin-bottom: 0.5rem;
+}
+
+.general-feedback p {
+  margin: 0;
+  color: #212529;
+  line-height: 1.5;
+}
+
+.specific-suggestions h6 {
+  color: #495057;
+  margin-bottom: 0.5rem;
+}
+
+.suggestion-list {
+  margin: 0;
+  padding-left: 20px;
+  list-style-type: circle;
+}
+
+.suggestion-list li {
+  margin-bottom: 0.5rem;
+  color: #212529;
+  line-height: 1.5;
+}
+
+.validation-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.validation-table th,
+.validation-table td {
+  padding: 0.75rem;
+  border: 1px solid #dee2e6;
+  text-align: left;
+}
+
+.validation-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #495057;
+}
+
+.validation-table td {
+  color: #212529;
+}
+
+.progress-container {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #eee;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--primary-color);
+  transition: width 0.3s ease;
+}
+
+.progress-fill.error {
+  background-color: #dc3545;
+}
+
+.progress-status {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.progress-message {
+  margin-right: 1rem;
+}
+
+.progress-percentage {
+  font-weight: bold;
 }
 </style> 

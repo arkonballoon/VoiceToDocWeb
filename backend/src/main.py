@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, UploadFile, File, HTTPException, WebSocketDisconnect, Body
+from fastapi import FastAPI, WebSocket, UploadFile, File, HTTPException, WebSocketDisconnect, Body, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -41,6 +41,9 @@ logger = get_application_logger()
 TEMPLATE_PATH = Path("/app/data/templates")
 TEMPLATE_PATH.mkdir(parents=True, exist_ok=True)
 
+# Speicher für Verarbeitungsergebnisse
+processing_results: Dict[str, Any] = {}
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
@@ -52,7 +55,7 @@ async def lifespan(app: FastAPI):
         logger.info("Starte Anwendung...")
         
         # Initialisiere Komponenten
-        app.state.transcriber = Transcriber()
+        app.state.transcriber = Transcriber(api_key=settings.LLM_API_KEY)
         app.state.audio_processor = AudioProcessor()
         app.state.queue_manager = TranscriptionQueueManager()
         
@@ -114,7 +117,7 @@ TEMP_DIR = Path("temp")
 TEMP_DIR.mkdir(exist_ok=True)
 
 # Transcriber-Instanz erstellen (nur einmal)
-transcriber = Transcriber()
+transcriber = Transcriber(api_key=settings.LLM_API_KEY)
 audio_processor = AudioProcessor()
 
 # Queue-Manager erstellen und Transcriber übergeben
@@ -610,30 +613,85 @@ class TemplateProcessingRequest(BaseModel):
     template_id: str
     transcription: str
 
+@app.websocket("/ws/template_processing/{client_id}")
+async def template_processing_websocket(websocket: WebSocket, client_id: str):
+    """WebSocket-Endpunkt für Template-Verarbeitungs-Updates."""
+    await websocket.accept()
+    
+    try:
+        # WebSocket beim TemplateProcessor registrieren
+        await template_processor.register_connection(client_id, websocket)
+        
+        while True:
+            # Heartbeat empfangen aber nicht darauf warten
+            try:
+                await asyncio.wait_for(websocket.receive_text(), timeout=1.0)
+            except asyncio.TimeoutError:
+                continue
+            except WebSocketDisconnect:
+                break
+                
+    except Exception as e:
+        logger.error(f"WebSocket-Fehler: {str(e)}")
+    finally:
+        # Verbindung beim Beenden entfernen
+        await template_processor.remove_connection(client_id)
+        await websocket.close()
+
 @app.post("/process_template")
-def process_template(request: TemplateProcessingRequest):
-    """Verarbeitet ein Template mit der gegebenen Transkription"""
+async def process_template(
+    request: TemplateProcessingRequest,
+    background_tasks: BackgroundTasks
+):
+    """Startet die Template-Verarbeitung"""
     try:
         template = template_service.get_template(request.template_id)
         if not template:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Template mit ID {request.template_id} nicht gefunden"
-            )
+            raise HTTPException(status_code=404, detail=f"Template nicht gefunden")
         
-        result = template_processor.process_template(
+        process_id = str(uuid.uuid4())
+        
+        # Verarbeitung im Hintergrund starten
+        background_tasks.add_task(
+            process_template_background,
             template.content,
-            request.transcription
+            request.transcription,
+            process_id
         )
         
-        return result
+        return {"process_id": process_id, "status": "processing"}
         
     except Exception as e:
         logger.error(f"Fehler bei der Template-Verarbeitung: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Fehler bei der Template-Verarbeitung: {str(e)}"
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def process_template_background(template: str, transcription: str, process_id: str):
+    """Führt die Template-Verarbeitung im Hintergrund durch und speichert das Ergebnis"""
+    try:
+        result = await template_processor.process_template_with_updates(
+            template, 
+            transcription, 
+            process_id
         )
+        processing_results[process_id] = result
+    except Exception as e:
+        logger.error(f"Fehler bei der Hintergrundverarbeitung: {str(e)}")
+        processing_results[process_id] = {"error": str(e)}
+
+@app.get("/process_template/{process_id}")
+async def get_template_result(process_id: str):
+    """Gibt das Ergebnis der Template-Verarbeitung zurück"""
+    if process_id not in processing_results:
+        raise HTTPException(
+            status_code=404,
+            detail="Verarbeitungsergebnis nicht gefunden"
+        )
+    
+    result = processing_results[process_id]
+    # Optional: Ergebnis nach dem Abrufen löschen
+    # del processing_results[process_id]
+    
+    return result
 
 if __name__ == "__main__":
     import uvicorn

@@ -82,15 +82,30 @@
         :options="editorOptions"
       />
     </div>
+
+    <div v-if="isProcessing" class="progress-container">
+      <div class="progress-status">
+        {{ progressMessage }}
+      </div>
+    </div>
+    
+    <button 
+      @click="processTemplate" 
+      :disabled="isProcessing || !transcript"
+      :class="{ 'processing': isProcessing }"
+    >
+      {{ isProcessing ? progressMessage : 'Verarbeiten' }}
+    </button>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
 import { useTranscriptionStore } from '../stores/transcription'
 import RecordRTC from 'recordrtc'
+import { WS_BASE_URL, HEARTBEAT_INTERVAL } from '@/config'
 
 export default {
   name: 'TranscriptionService',
@@ -113,6 +128,14 @@ export default {
     const mediaStream = ref(null)
     const lastUploadTime = ref(0)
     const currentBlob = ref(null)
+    const processedText = ref('')
+    const isProcessing = ref(false)
+    const currentProcessId = ref(null)
+    const socket = ref(null)
+    const progressMessage = ref('')
+    const progressStatus = ref('')
+    let reconnectAttempts = 0
+    let heartbeatInterval = null
 
     const toolbarOptions = [
       ['bold', 'italic', 'underline', 'strike'],
@@ -129,7 +152,25 @@ export default {
     const editorOptions = {
       theme: 'snow',
       modules: {
-        toolbar: toolbarOptions
+        toolbar: [
+          [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+          ['bold', 'italic', 'underline', 'strike'],
+          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+          [{ 'align': [] }],
+          ['clean'],
+          ['timestamp'] // Custom Button für Zeitstempel
+        ]
+      },
+      formats: {
+        // Erlaubte Formate definieren
+        header: true,
+        bold: true,
+        italic: true,
+        underline: true,
+        strike: true,
+        list: true,
+        align: true,
+        timestamp: true // Custom Format für Zeitstempel
       }
     }
 
@@ -146,17 +187,28 @@ export default {
 
     onMounted(() => {
       loadAudioDevices()
+      connectWebSocket()
+    })
+
+    onUnmounted(() => {
+      if (socket.value) {
+        socket.value.close()
+      }
+      clearInterval(heartbeatInterval)
     })
 
     const appendTranscription = (newText) => {
       if (!newText) return
-
-      // Füge Leerzeichen zwischen Texten ein, wenn nötig
-      if (transcript.value && !transcript.value.endsWith(' ') && !newText.startsWith(' ')) {
-        transcript.value += ' '
+      
+      const formattedText = processTranscription(newText)
+      
+      if (transcript.value) {
+        // Füge neuen Text am Ende ein
+        transcript.value += formattedText
+      } else {
+        transcript.value = formattedText
       }
       
-      transcript.value += newText
       editableTranscript.value = transcript.value
       transcriptionStore.setTranscription(transcript.value, confidence.value)
     }
@@ -363,10 +415,12 @@ export default {
 
         const result = await response.json()
         
-        transcript.value = result.text
-        editableTranscript.value = result.text
+        // Verarbeite den Text vor dem Setzen
+        const formattedText = processTranscription(result.text)
+        transcript.value = formattedText
+        editableTranscript.value = formattedText
         confidence.value = result.confidence
-        transcriptionStore.setTranscription(result.text, result.confidence)
+        transcriptionStore.setTranscription(formattedText, result.confidence)
         
       } catch (err) {
         error.value = `Fehler: ${err.message}`
@@ -379,6 +433,126 @@ export default {
     const handleTranscriptChange = (content) => {
       editableTranscript.value = content
       transcriptionStore.setTranscription(content)
+    }
+
+    // Funktion zum Verarbeiten der Transkription
+    const processTranscription = (text) => {
+      if (!text) return ''
+      
+      // Stelle sicher, dass der Text als HTML geparst wird
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(text, 'text/html')
+      
+      // Füge Klassen für bessere Formatierung hinzu
+      doc.querySelectorAll('p[data-timestamp]').forEach(p => {
+        p.classList.add('transcript-segment')
+      })
+      
+      return doc.body.innerHTML
+    }
+
+    // WebSocket-Verbindung aufbauen
+    const connectWebSocket = () => {
+      const clientId = Math.random().toString(36).substring(7)
+      // Direkt mit Backend verbinden, nicht über Frontend-Port
+      const wsUrl = `ws://localhost:8000/ws/template_processing/${clientId}`
+      
+      console.log('Verbinde mit WebSocket:', wsUrl)
+      
+      if (socket.value?.readyState === WebSocket.OPEN) {
+        console.log('WebSocket bereits verbunden')
+        return
+      }
+
+      socket.value = new WebSocket(wsUrl)
+      
+      socket.value.onopen = () => {
+        console.log('WebSocket verbunden')
+        reconnectAttempts = 0
+        error.value = null
+        
+        // Heartbeat starten
+        clearInterval(heartbeatInterval)
+        heartbeatInterval = setInterval(() => {
+          if (socket.value?.readyState === WebSocket.OPEN) {
+            socket.value.send('ping')
+          }
+        }, HEARTBEAT_INTERVAL)
+      }
+      
+      socket.value.onmessage = async (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          console.log('WebSocket Update:', data)
+          
+          switch(data.status) {
+            case 'started':
+              updateProgress('started', 'Starte Verarbeitung...')
+              break
+            case 'extracting':
+              updateProgress('extracting', 'Extrahiere Informationen...')
+              break
+            case 'filling':
+              updateProgress('filling', 'Verarbeite Template...')
+              break
+            case 'validating':
+              updateProgress('validating', 'Validiere Template...')
+              break
+            case 'completed':
+              updateProgress('completed', 'Verarbeitung abgeschlossen')
+              await handleTemplateProcessingComplete(currentProcessId.value)
+              isProcessing.value = false  // Button-Status zurücksetzen
+              break
+            case 'error':
+              error.value = data.message
+              isProcessing.value = false
+              break
+          }
+        } catch (err) {
+          console.error('Fehler beim Verarbeiten der WebSocket-Nachricht:', err)
+        }
+      }
+      
+      socket.value.onerror = (event) => {
+        console.warn('WebSocket Fehler - versuche erneut zu verbinden')
+        // Fehler beim ersten Verbindungsversuch können ignoriert werden,
+        // da wir automatisch neu verbinden
+      }
+      
+      socket.value.onclose = () => {
+        console.log('WebSocket geschlossen')
+        clearInterval(heartbeatInterval)
+        
+        // Nur neu verbinden wenn die Komponente noch aktiv ist
+        if (reconnectAttempts < 3) {
+          reconnectAttempts++
+          console.log(`Verbindungsversuch ${reconnectAttempts}/3 in 5 Sekunden...`)
+          setTimeout(connectWebSocket, 5000)
+        }
+      }
+    }
+
+    // Ergebnis der Verarbeitung abrufen
+    const handleTemplateProcessingComplete = async (processId) => {
+      try {
+        const response = await fetch(`/api/process_template/${processId}`)
+        if (!response.ok) {
+          throw new Error('Fehler beim Abrufen des Ergebnisses')
+        }
+        const result = await response.json()
+        processedText.value = result.processed_text
+        isProcessing.value = false
+      } catch (err) {
+        console.error('Fehler:', err)
+        error.value = 'Fehler beim Abrufen des Verarbeitungsergebnisses'
+        isProcessing.value = false
+      }
+    }
+
+    const updateProgress = (status, message) => {
+      progressStatus.value = status
+      progressMessage.value = message
+      console.log(`Status: ${status}, Message: ${message}`)
     }
 
     return {
@@ -398,7 +572,14 @@ export default {
       handleDrop,
       uploadFile,
       handleTranscriptChange,
-      toggleRecording
+      toggleRecording,
+      processTranscription,
+      processedText,
+      isProcessing,
+      currentProcessId,
+      socket,
+      progressMessage,
+      progressStatus
     }
   }
 }
@@ -573,6 +754,7 @@ export default {
 :deep(.ql-container) {
   min-height: 200px;
   font-size: 16px;
+  line-height: 1.5;
   font-family: inherit;
 }
 
@@ -585,4 +767,60 @@ export default {
   border-bottom-left-radius: 4px;
   border-bottom-right-radius: 4px;
 }
+
+:deep(.transcript-segment) {
+  position: relative;
+  padding: 0.5rem;
+  margin: 0.25rem 0;
+  border-radius: 4px;
+  background: #f8f9fa;
+}
+
+:deep(.transcript-segment:hover) {
+  background: #e9ecef;
+}
+
+:deep(.transcript-segment[data-timestamp]):after {
+  content: attr(data-timestamp);
+  position: absolute;
+  right: 0.5rem;
+  top: 0.5rem;
+  font-size: 0.8rem;
+  color: #6c757d;
+  opacity: 0.7;
+}
+
+:deep(.ql-container) {
+  min-height: 200px;
+  font-size: 16px;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
+:deep(.ql-editor) {
+  padding: 1rem;
+}
+
+:deep(.ql-editor p) {
+  margin-bottom: 0.5rem;
+}
+
+.progress-container {
+  margin: 1rem 0;
+  padding: 1rem;
+  background-color: var(--background-secondary);
+  border-radius: 4px;
+}
+
+.progress-status {
+  text-align: center;
+  color: var(--text-color);
+  font-size: 0.9rem;
+}
+
+button.processing {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
 </style>
+
