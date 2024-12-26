@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import logging
 import json
 from dotenv import load_dotenv
@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     LLM_TEMPERATURE: float = 0.7
     LLM_MAX_TOKENS: int = 4000
     
+    # Storage-Konfiguration
+    STORAGE_TYPE: str = "filesystem"  # oder "sql"
+    DATABASE_URL: Optional[str] = None
+    
     def save_to_file(self):
         """Speichert die aktuelle Konfiguration in eine JSON-Datei"""
         config_dict = self.model_dump()
@@ -99,6 +103,17 @@ class Settings(BaseSettings):
         
 # Globale Konfigurationsinstanz
 settings = Settings()
-# Erstelle notwendige Verzeichnisse
+
+def ensure_directory_permissions(directory: Path):
+    """Stellt sicher, dass das Verzeichnis existiert und beschreibbar ist"""
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        # Setze Berechtigungen (755 für Verzeichnisse)
+        directory.chmod(0o755)
+    except Exception as e:
+        logger.error(f"Fehler beim Erstellen/Setzen der Berechtigungen für {directory}: {e}")
+        raise
+
+# Erstelle notwendige Verzeichnisse mit korrekten Berechtigungen
 for directory in [settings.DATA_DIR, settings.TEMP_DIR, settings.LOG_DIR, settings.TEMPLATE_DIR]:
-    directory.mkdir(parents=True, exist_ok=True) 
+    ensure_directory_permissions(directory) 

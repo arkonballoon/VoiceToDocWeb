@@ -221,11 +221,16 @@ export default {
 
     const loadTemplates = async () => {
       try {
-        const response = await fetch('http://localhost:8000/templates')
-        if (!response.ok) throw new Error('Fehler beim Laden der Templates')
+        const response = await fetch('http://localhost:8000/templates/')
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.detail || 'Fehler beim Laden der Templates')
+        }
         templates.value = await response.json()
       } catch (error) {
         console.error('Fehler beim Laden der Templates:', error)
+        // Optional: Zeige Fehlermeldung in der UI
+        // errorMessage.value = error.message
       }
     }
 

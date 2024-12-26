@@ -127,7 +127,7 @@ queue_manager = TranscriptionQueueManager(
 )
 
 # Template-Service initialisieren
-template_service = TemplateService(storage_path=settings.TEMPLATE_DIR)
+template_service = TemplateService()
 
 # Template-Processor mit API-Key initialisieren
 template_processor = TemplateProcessor(api_key=settings.LLM_API_KEY)
@@ -481,13 +481,17 @@ async def create_template(
 async def get_templates():
     """Gibt alle verfügbaren Templates zurück"""
     try:
-        templates = template_service.get_templates()
-        return templates  # Dies muss eine Liste von Template-Objekten sein
+        templates = await template_service.get_templates()
+        # Debug-Logging
+        logger.debug(f"Geladene Templates: {templates}")
+        return templates
     except Exception as e:
-        logger.error(f"Fehler beim Abrufen der Templates: {str(e)}")
+        logger.error(f"Fehler beim Laden der Templates: {str(e)}")
+        # Stack Trace für besseres Debugging
+        logger.exception(e)
         raise HTTPException(
             status_code=500,
-            detail=f"Fehler beim Abrufen der Templates: {str(e)}"
+            detail=str(e)
         )
 
 @app.delete("/templates/{template_id}")

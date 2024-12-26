@@ -100,11 +100,28 @@ export default {
   methods: {
     async loadTemplates() {
       try {
-        const response = await fetch(`${API_BASE_URL}/templates`)
-        if (!response.ok) throw new Error('Fehler beim Laden der Templates')
-        this.templates = await response.json()
+        const response = await fetch('http://localhost:8000/templates/')
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.detail || 'Fehler beim Laden der Templates')
+        }
+        
+        const text = await response.text() // Erst als Text laden
+        if (!text) {
+          this.templates = [] // Leere Liste wenn keine Daten
+          return
+        }
+        
+        try {
+          const data = JSON.parse(text) // Dann parsen
+          this.templates = Array.isArray(data) ? data : [] // Sicherstellen dass es ein Array ist
+        } catch (parseError) {
+          console.error('Fehler beim Parsen der Template-Daten:', text)
+          this.templates = []
+        }
       } catch (error) {
-        console.error('Fehler:', error)
+        console.error('Fehler beim Laden der Templates:', error)
+        this.templates = []
       }
     },
     editTemplate(template) {
