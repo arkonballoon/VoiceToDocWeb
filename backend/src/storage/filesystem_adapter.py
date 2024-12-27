@@ -4,7 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from .storage_adapter import StorageAdapter
-from utils.logger import get_logger
+from utils.logger import get_logger, log_function_call
 
 logger = get_logger(__name__)
 

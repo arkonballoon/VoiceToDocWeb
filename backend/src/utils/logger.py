@@ -9,6 +9,9 @@ import asyncio
 import functools
 import inspect
 
+# Flag für die Logger-Konfiguration
+_is_logging_configured = False
+
 class CustomJsonFormatter(logging.Formatter):
     def __init__(self):
         super().__init__()
@@ -43,8 +46,19 @@ def configure_logging(log_file: Path = None, level: int = logging.DEBUG):
     """
     Zentrale Logging-Konfiguration für die gesamte Anwendung
     """
+    global _is_logging_configured
+    
+    # Wenn das Logging bereits konfiguriert wurde, nichts tun
+    if _is_logging_configured:
+        return
+        
     # Root Logger konfigurieren
     root_logger = logging.getLogger()
+    
+    # Alle existierenden Handler entfernen
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
     root_logger.setLevel(level)
     
     # Console Handler mit menschenlesbarem Format
@@ -60,57 +74,50 @@ def configure_logging(log_file: Path = None, level: int = logging.DEBUG):
         file_handler.setFormatter(CustomJsonFormatter())
         file_handler.setLevel(level)
         root_logger.addHandler(file_handler)
+    
+    _is_logging_configured = True
 
-def get_logger(name: str = None):
+def get_logger(name: str = None) -> logging.Logger:
     """
-    Erstellt einen Logger mit dem angegebenen Namen oder verwendet __name__ als Standard.
-    
-    Args:
-        name (str, optional): Name des Loggers. Defaults to None.
+    Zentrale Funktion zum Erstellen eines Loggers
     """
-    logger = logging.getLogger(name if name else __name__)
-    
-    # Verhindert doppelte Handler
-    if not logger.handlers:
-        # Handler hinzufügen
-        handler = logging.StreamHandler()
-        logger.addHandler(handler)
-    
-    return logger
+    return logging.getLogger(name or __name__)
 
-# Logger für dieses Modul erstellen
-logger = logging.getLogger(__name__)
-
-def log_function_call(func=None, logger=None):
-    """Decorator zum Loggen von Funktionsaufrufen"""
+def log_function_call(func=None):
+    """
+    Flexibler Decorator für Funktions-Logging
+    Kann mit oder ohne Klammern verwendet werden: @log_function_call oder @log_function_call()
+    """
     if func is None:
-        return lambda f: log_function_call(f, logger)
+        return log_function_call  # Rekursiver Aufruf wenn ohne Funktion aufgerufen
         
-    _logger = logger or logging.getLogger(func.__module__)
+    logger = get_logger(func.__module__)
     
-    @functools.wraps(func)
+    @wraps(func)
     async def async_wrapper(*args, **kwargs):
-        name = func.__name__ if hasattr(func, '__name__') else str(func)
-        _logger.debug(f"Aufruf von {name} mit args={args}, kwargs={kwargs}")
+        logger.debug(f"Start: {func.__name__}")
         try:
             result = await func(*args, **kwargs)
+            logger.debug(f"Ende: {func.__name__}")
             return result
         except Exception as e:
-            _logger.error(f"Fehler in {name}: {str(e)}")
+            logger.error(f"Fehler in {func.__name__}: {str(e)}")
+            logger.exception(e)
             raise
 
-    @functools.wraps(func)
+    @wraps(func)
     def sync_wrapper(*args, **kwargs):
-        name = func.__name__ if hasattr(func, '__name__') else str(func)
-        _logger.debug(f"Aufruf von {name} mit args={args}, kwargs={kwargs}")
+        logger.debug(f"Start: {func.__name__}")
         try:
             result = func(*args, **kwargs)
+            logger.debug(f"Ende: {func.__name__}")
             return result
         except Exception as e:
-            _logger.error(f"Fehler in {name}: {str(e)}")
+            logger.error(f"Fehler in {func.__name__}: {str(e)}")
+            logger.exception(e)
             raise
 
-    if inspect.iscoroutinefunction(func):
+    if asyncio.iscoroutinefunction(func):
         return async_wrapper
     return sync_wrapper
 

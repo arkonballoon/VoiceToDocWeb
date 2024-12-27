@@ -6,9 +6,13 @@ import json
 from dotenv import load_dotenv
 import os
 
+# Logger konfigurieren
+logger = logging.getLogger(__name__)
+
 # Lade .env Datei
 load_dotenv()
 
+# API Key Prüfung
 if not os.getenv("LLM_API_KEY"):
     logger.error("LLM_API_KEY nicht in .env Datei gefunden")
     raise ValueError("LLM_API_KEY muss in der .env Datei gesetzt sein")
@@ -60,8 +64,37 @@ class Settings(BaseSettings):
     LLM_MAX_TOKENS: int = 4000
     
     # Storage-Konfiguration
-    STORAGE_TYPE: str = "filesystem"  # oder "sql"
-    DATABASE_URL: Optional[str] = None
+    STORAGE_TYPE: str = "sql"  # oder "filesystem"
+    
+    # Datenbank-Einstellungen
+    DB_TYPE: str = os.getenv("DB_TYPE", "sqlite")  # "sqlite", "postgresql", "mysql"
+    DB_HOST: str = os.getenv("DB_HOST", "localhost")
+    DB_PORT: int = int(os.getenv("DB_PORT", "5432"))
+    DB_USER: str = os.getenv("DB_USER", "postgres")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "postgres")
+    DB_NAME: str = os.getenv("DB_NAME", "templates_db")
+    
+    # SQLite spezifische Einstellungen
+    DB_PATH: str = os.getenv("DB_PATH", "data/templates.db")
+    
+    # Connection Pool Settings (nicht für SQLite)
+    DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))
+    DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+    
+    # Debug-Einstellungen
+    SQL_DEBUG: bool = os.getenv("SQL_DEBUG", "false").lower() == "true"
+    
+    @property
+    def DATABASE_URL(self) -> str:
+        """Generiert die Datenbank-URL basierend auf der Konfiguration"""
+        if self.DB_TYPE == "sqlite":
+            return f"sqlite+aiosqlite:///{self.DB_PATH}"
+        elif self.DB_TYPE == "postgresql":
+            return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        elif self.DB_TYPE == "mysql":
+            return f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        else:
+            raise ValueError(f"Nicht unterstützter Datenbanktyp: {self.DB_TYPE}")
     
     def save_to_file(self):
         """Speichert die aktuelle Konfiguration in eine JSON-Datei"""

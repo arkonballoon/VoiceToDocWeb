@@ -10,8 +10,9 @@ from config import settings
 from fastapi import WebSocket
 import asyncio
 from datetime import datetime
+from utils.singleton import Singleton
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 class TemplateProcessingResult(BaseModel):
     """Ergebnis der Template-Verarbeitung"""
@@ -24,14 +25,15 @@ class TemplateProcessingResult(BaseModel):
     needs_revision: bool = False
     revision_comments: Optional[str] = None
 
-class TemplateProcessor:
-    def __init__(self, api_key: str):
-        if not api_key:
-            raise ValueError("API-Key ist erforderlich")
-        self.client = AsyncOpenAI(api_key=api_key)
+class TemplateProcessor(Singleton):
+    def _init(self):
+        """Initialisierung des TemplateProcessors"""
+        self.api_key = settings.LLM_API_KEY
+        self.model = settings.LLM_MODEL
+        self.client = AsyncOpenAI(api_key=self.api_key)
         self.active_connections = {}
-        logger.info("TemplateProcessor initialisiert mit API-Key: %s...", api_key[:8])
-        logger.info("Verwende LLM-Modell: %s", settings.LLM_MODEL)
+        logger.info(f"TemplateProcessor initialisiert mit API-Key: {self.api_key[:10]}...")
+        logger.info(f"Verwende LLM-Modell: {self.model}")
     
     async def register_connection(self, process_id: str, websocket: WebSocket):
         """Registriert eine neue WebSocket-Verbindung für Updates"""
@@ -248,7 +250,7 @@ class TemplateProcessor:
             messages=[
                 {"role": "system", "content": """
                     Überprüfe das ausgefüllte Template auf:
-                    1. Vollständigkeit der ben��tigten Informationen
+                    1. Vollständigkeit der benötigten Informationen
                     2. Korrekte Verwendung der extrahierten Informationen
                     3. Einhaltung der Template-Struktur
                     4. Konsistenz mit der Original-Transkription

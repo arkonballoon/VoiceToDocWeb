@@ -6,12 +6,13 @@ from utils.logger import get_logger
 import torch
 from config import settings
 from openai import OpenAI
+from utils.singleton import Singleton
 
 logger = get_logger(__name__)
 
-class Transcriber:
-    def __init__(self, model_size: str = None, api_key: str = None):
-        """Initialisiert das Whisper-Modell und OpenAI Client."""
+class Transcriber(Singleton):
+    def _init(self, model_size: str = None, api_key: str = None):
+        """Initialisierung des Transcribers"""
         self.model = None
         self.client = OpenAI(api_key=api_key or settings.LLM_API_KEY)
         self.load_model(model_size)
@@ -106,13 +107,16 @@ class Transcriber:
             )
             
             # Rohen Text sammeln
-            raw_text = " ".join([segment.text.strip() for segment in segments])
+            segments_list = list(segments)  # Konvertiere Generator in Liste
+            raw_text = " ".join([segment.text.strip() for segment in segments_list])
             
             # Text nachbearbeiten
             processed_text = self.post_process_transcription(raw_text)
             
             # Konfidenz berechnen
-            confidence = np.mean([segment.avg_logprob for segment in segments]) if segments else 0.0
+            confidence = 0.0
+            if segments_list:  # Nur berechnen wenn Segmente vorhanden sind
+                confidence = np.mean([segment.avg_logprob for segment in segments_list])
             
             logger.info(f"Transkription erfolgreich: {len(processed_text)} Zeichen")
             return processed_text, confidence
@@ -151,6 +155,3 @@ class Transcriber:
         except Exception as e:
             logger.error(f"Fehler bei der Chunk-Transkription: {str(e)}")
             raise
-
-# Globale Transcriber-Instanz
-transcriber_instance = Transcriber()

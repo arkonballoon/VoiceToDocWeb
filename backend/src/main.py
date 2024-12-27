@@ -17,29 +17,29 @@ from contextlib import asynccontextmanager
 from services.template_service import TemplateService, TemplateNotFoundError
 from models.template import Template, TemplateUpdate
 from typing import List
-from utils.logger import configure_logging
+from utils.logger import get_logger, configure_logging
 from utils.exceptions import VoiceToDocException, AudioProcessingError, TranscriptionError, handle_voice_to_doc_exception
 from config import settings
 from pydantic import BaseModel
 from services.template_processor import TemplateProcessor
 import math
 
+# Verzeichnisse erstellen
+LOG_DIR = Path("/app/data/logs")
+TEMPLATE_PATH = Path("/app/data/templates")
+TEMP_DIR = Path("/app/data/temp")
+
+# Verzeichnisse erstellen
+for directory in [LOG_DIR, TEMPLATE_PATH, TEMP_DIR]:
+    directory.mkdir(parents=True, exist_ok=True)
+
 # Logger Setup
-LOG_DIR = Path("logs")
 configure_logging(
     log_file=LOG_DIR / "app.log",
     level=settings.LOG_LEVEL
 )
 
-# Singleton-Pattern für Logger implementieren
-def get_application_logger():
-    return logging.getLogger('application')
-
-logger = get_application_logger()
-
-# Ändere den relativen Pfad zu den Templates
-TEMPLATE_PATH = Path("/app/data/templates")
-TEMPLATE_PATH.mkdir(parents=True, exist_ok=True)
+logger = get_logger(__name__)
 
 # Speicher für Verarbeitungsergebnisse
 processing_results: Dict[str, Any] = {}
@@ -55,9 +55,16 @@ async def lifespan(app: FastAPI):
         logger.info("Starte Anwendung...")
         
         # Initialisiere Komponenten
-        app.state.transcriber = Transcriber(api_key=settings.LLM_API_KEY)
+        app.state.template_service = TemplateService()
+        app.state.template_processor = TemplateProcessor()
+        app.state.transcriber = Transcriber()
         app.state.audio_processor = AudioProcessor()
-        app.state.queue_manager = TranscriptionQueueManager()
+        
+        # Queue-Manager mit Transcriber initialisieren
+        app.state.queue_manager = TranscriptionQueueManager(
+            max_workers=2,
+            transcriber=app.state.transcriber
+        )
         
         # Starte Dienste
         await app.state.queue_manager.start()
@@ -99,7 +106,8 @@ app = FastAPI(
     """,
     version="1.0.0",
     docs_url="/",  # Swagger UI auf Root-Pfad
-    redoc_url="/redoc"  # ReDoc auf /redoc
+    redoc_url="/redoc",  # ReDoc auf /redoc
+    lifespan=lifespan
 )
 
 # CORS-Middleware hinzufügen
@@ -111,26 +119,6 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"]
 )
-
-# Temporäres Verzeichnis für Audio-Dateien
-TEMP_DIR = Path("temp")
-TEMP_DIR.mkdir(exist_ok=True)
-
-# Transcriber-Instanz erstellen (nur einmal)
-transcriber = Transcriber(api_key=settings.LLM_API_KEY)
-audio_processor = AudioProcessor()
-
-# Queue-Manager erstellen und Transcriber übergeben
-queue_manager = TranscriptionQueueManager(
-    max_workers=2,
-    transcriber=transcriber
-)
-
-# Template-Service initialisieren
-template_service = TemplateService()
-
-# Template-Processor mit API-Key initialisieren
-template_processor = TemplateProcessor(api_key=settings.LLM_API_KEY)
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request, exc):
@@ -248,14 +236,14 @@ async def upload_audio(
                 buffer.write(content)
             
             # Zu WAV konvertieren
-            if not audio_processor.convert_webm_to_wav(webm_file, wav_file):
+            if not app.state.audio_processor.convert_webm_to_wav(webm_file, wav_file):
                 raise HTTPException(
                     status_code=500,
                     detail="Fehler bei der Audio-Konvertierung"
                 )
             
             # Transkription durchführen
-            text, confidence = transcriber.transcribe_audio(wav_file)
+            text, confidence = app.state.transcriber.transcribe_audio(wav_file)
             
             return {
                 "text": text,
@@ -287,22 +275,6 @@ async def upload_audio(
 async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket-Endpunkt für Echtzeit-Audiostreaming und Transkription.
-    
-    Unterstützt:
-    * Echtzeit-Audio-Streaming
-    * Chunk-basierte Verarbeitung
-    * Fortschrittsanzeige
-    * Status-Updates
-    * Fehlerbehandlung und Wiederverbindung
-    
-    Nachrichtentypen:
-    * chunks_info: Informationen über die Anzahl der Chunks
-    * task_created: Neue Transkriptionsaufgabe erstellt
-    * progress_update: Fortschrittsupdate
-    * transcription_result: Transkriptionsergebnis
-    * error: Fehlermeldung
-    * info: Informationsmeldung
-    * warning: Warnmeldung
     """
     connection_id = str(uuid.uuid4())
     logger.info(f"Neue WebSocket-Verbindung: {connection_id}")
@@ -356,7 +328,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                 
                 # Prüfen ob es sich um Stille handelt
-                if audio_processor.is_silence(data):
+                if app.state.audio_processor.is_silence(data):
                     await websocket.send_json({
                         "type": "info",
                         "message": "Stille erkannt"
@@ -364,7 +336,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     continue
                 
                 # Audio in Chunks aufteilen
-                chunks = audio_processor.process_audio_chunk(data)
+                chunks = app.state.audio_processor.process_audio_chunk(data)
                 total_chunks = len(chunks)
                 
                 if total_chunks == 0:
@@ -383,7 +355,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 for i, chunk in enumerate(chunks, 1):
                     try:
                         # Chunk zur Verarbeitungsqueue hinzufügen
-                        task_id = await queue_manager.add_task(
+                        task_id = await app.state.queue_manager.add_task(
                             audio_data=chunk,
                             previous_text=previous_text,
                             websocket_id=connection_id,
@@ -423,7 +395,7 @@ async def websocket_endpoint(websocket: WebSocket):
         logger.error(f"Kritischer WebSocket-Fehler: {str(e)}", exc_info=True)
     finally:
         logger.info(f"WebSocket-Verbindung geschlossen: {connection_id}")
-        await websocket.close() 
+        await websocket.close()
 
 # Benutzerdefinierte OpenAPI-Dokumentation
 def custom_openapi():
@@ -468,7 +440,7 @@ async def create_template(
     description: str | None = Body(None)
 ):
     try:
-        template = await template_service.save_template(
+        template = await app.state.template_service.save_template(
             name=name,
             content=content,
             description=description
@@ -481,7 +453,7 @@ async def create_template(
 async def get_templates():
     """Gibt alle verfügbaren Templates zurück"""
     try:
-        templates = await template_service.get_templates()
+        templates = await app.state.template_service.get_templates()
         # Debug-Logging
         logger.debug(f"Geladene Templates: {templates}")
         return templates
@@ -496,7 +468,7 @@ async def get_templates():
 
 @app.delete("/templates/{template_id}")
 async def delete_template(template_id: str):
-    if template_service.delete_template(template_id):
+    if app.state.template_service.delete_template(template_id):
         return {"message": "Template erfolgreich gelöscht"}
     raise HTTPException(status_code=404, detail="Template nicht gefunden")
 
@@ -504,7 +476,7 @@ async def delete_template(template_id: str):
 async def update_template(template_id: str, template_update: TemplateUpdate):
     """Aktualisiert ein bestehendes Template"""
     try:
-        updated_template = template_service.update_template(template_id, template_update)
+        updated_template = app.state.template_service.update_template(template_id, template_update)
         return updated_template
     except TemplateNotFoundError:
         raise HTTPException(
@@ -624,7 +596,7 @@ async def template_processing_websocket(websocket: WebSocket, client_id: str):
     
     try:
         # WebSocket beim TemplateProcessor registrieren
-        await template_processor.register_connection(client_id, websocket)
+        await app.state.template_processor.register_connection(client_id, websocket)
         
         while True:
             # Heartbeat empfangen aber nicht darauf warten
@@ -638,9 +610,16 @@ async def template_processing_websocket(websocket: WebSocket, client_id: str):
     except Exception as e:
         logger.error(f"WebSocket-Fehler: {str(e)}")
     finally:
-        # Verbindung beim Beenden entfernen
-        await template_processor.remove_connection(client_id)
-        await websocket.close()
+        try:
+            # Verbindung beim Beenden entfernen
+            await app.state.template_processor.remove_connection(client_id)
+            try:
+                await websocket.close()
+            except RuntimeError:
+                # Ignoriere Fehler wenn die Verbindung bereits geschlossen ist
+                pass
+        except Exception as e:
+            logger.error(f"Fehler beim Schließen der WebSocket-Verbindung: {str(e)}")
 
 @app.post("/process_template")
 async def process_template(
@@ -649,7 +628,7 @@ async def process_template(
 ):
     """Startet die Template-Verarbeitung"""
     try:
-        template = template_service.get_template(request.template_id)
+        template = await app.state.template_service.get_template(request.template_id)
         if not template:
             raise HTTPException(status_code=404, detail=f"Template nicht gefunden")
         
@@ -660,7 +639,8 @@ async def process_template(
             process_template_background,
             template.content,
             request.transcription,
-            process_id
+            process_id,
+            app.state.template_processor
         )
         
         return {"process_id": process_id, "status": "processing"}
@@ -669,7 +649,12 @@ async def process_template(
         logger.error(f"Fehler bei der Template-Verarbeitung: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-async def process_template_background(template: str, transcription: str, process_id: str):
+async def process_template_background(
+    template: str, 
+    transcription: str, 
+    process_id: str,
+    template_processor: TemplateProcessor
+):
     """Führt die Template-Verarbeitung im Hintergrund durch und speichert das Ergebnis"""
     try:
         result = await template_processor.process_template_with_updates(
