@@ -12,7 +12,9 @@ services:
     environment:
       - PYTHONPATH=/app/src
       - LOG_LEVEL=20
-      - 'ALLOWED_ORIGINS=["http://localhost:3000","http://frontend:3000","http://192.168.178.67:3000"]'
+      - 'ALLOWED_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000","http://frontend:3000"]'
+    env_file:
+      - ./backend/.env
 
   frontend:
     build:
@@ -24,6 +26,10 @@ services:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      - VITE_API_URL=http://localhost:8000
+      - VITE_BACKEND_URL=localhost:8000
+      - VITE_PROTOCOL=http
+      - VITE_WS_PROTOCOL=ws
+    env_file:
+      - ./frontend/.env
     depends_on:
       - backend

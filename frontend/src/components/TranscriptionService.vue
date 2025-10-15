@@ -105,7 +105,8 @@ import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
 import { useTranscriptionStore } from '../stores/transcription'
 import RecordRTC from 'recordrtc'
-import { WS_BASE_URL, HEARTBEAT_INTERVAL } from '@/config'
+import { apiService, wsService } from '../services/api.js'
+import { API_CONFIG, WS_CONFIG, AUDIO_CONFIG } from '../config.js'
 
 export default {
   name: 'TranscriptionService',
@@ -241,17 +242,7 @@ export default {
           zeit: new Date().toISOString()
         })
 
-        const response = await fetch('http://192.168.178.67:8000/upload_audio', {
-          method: 'POST',
-          body: formData
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`Upload fehlgeschlagen: ${response.status} - ${errorText}`)
-        }
-
-        const result = await response.json()
+        const result = await apiService.uploadAudio(file)
         
         // Füge neue Transkription hinzu statt zu überschreiben
         appendTranscription(result.text)
@@ -403,17 +394,7 @@ export default {
       try {
         console.log('Sende Datei:', selectedFile.value.name, 'Größe:', selectedFile.value.size)
         
-        const response = await fetch('http://192.168.178.67:8000/upload_audio', {
-          method: 'POST',
-          body: formData
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          throw new Error(`Upload fehlgeschlagen: ${response.status} - ${errorText}`)
-        }
-
-        const result = await response.json()
+        const result = await apiService.uploadAudio(selectedFile.value)
         
         // Verarbeite den Text vor dem Setzen
         const formattedText = processTranscription(result.text)
@@ -454,35 +435,30 @@ export default {
     // WebSocket-Verbindung aufbauen
     const connectWebSocket = () => {
       const clientId = Math.random().toString(36).substring(7)
-      // Direkt mit Backend verbinden, nicht über Frontend-Port
-      const wsUrl = `ws://localhost:8000/ws/template_processing/${clientId}`
+      const wsEndpoint = `${API_CONFIG.ENDPOINTS.WS_TEMPLATE_PROCESSING}/${clientId}`
       
-      console.log('Verbinde mit WebSocket:', wsUrl)
+      console.log('Verbinde mit WebSocket:', wsEndpoint)
       
       if (socket.value?.readyState === WebSocket.OPEN) {
         console.log('WebSocket bereits verbunden')
         return
       }
 
-      socket.value = new WebSocket(wsUrl)
-      
-      socket.value.onopen = () => {
-        console.log('WebSocket verbunden')
-        reconnectAttempts = 0
-        error.value = null
-        
-        // Heartbeat starten
-        clearInterval(heartbeatInterval)
-        heartbeatInterval = setInterval(() => {
-          if (socket.value?.readyState === WebSocket.OPEN) {
-            socket.value.send('ping')
-          }
-        }, HEARTBEAT_INTERVAL)
-      }
-      
-      socket.value.onmessage = async (event) => {
-        try {
-          const data = JSON.parse(event.data)
+      socket.value = wsService.connect(wsEndpoint, {
+        onOpen: () => {
+          console.log('WebSocket verbunden')
+          reconnectAttempts = 0
+          error.value = null
+          
+          // Heartbeat starten
+          clearInterval(heartbeatInterval)
+          heartbeatInterval = setInterval(() => {
+            if (socket.value?.readyState === WebSocket.OPEN) {
+              socket.value.send('ping')
+            }
+          }, WS_CONFIG.HEARTBEAT_INTERVAL)
+        },
+        onMessage: async (data) => {
           console.log('WebSocket Update:', data)
           
           switch(data.status) {
@@ -508,28 +484,18 @@ export default {
               isProcessing.value = false
               break
           }
-        } catch (err) {
-          console.error('Fehler beim Verarbeiten der WebSocket-Nachricht:', err)
+        },
+        onError: (error) => {
+          console.error('WebSocket-Fehler beim Verarbeiten der Nachricht:', error)
+        },
+        onClose: () => {
+          console.log('WebSocket geschlossen')
+          clearInterval(heartbeatInterval)
+        },
+        onMaxReconnectAttempts: () => {
+          error.value = 'Verbindung zum Server verloren. Bitte Seite neu laden.'
         }
-      }
-      
-      socket.value.onerror = (event) => {
-        console.warn('WebSocket Fehler - versuche erneut zu verbinden')
-        // Fehler beim ersten Verbindungsversuch können ignoriert werden,
-        // da wir automatisch neu verbinden
-      }
-      
-      socket.value.onclose = () => {
-        console.log('WebSocket geschlossen')
-        clearInterval(heartbeatInterval)
-        
-        // Nur neu verbinden wenn die Komponente noch aktiv ist
-        if (reconnectAttempts < 3) {
-          reconnectAttempts++
-          console.log(`Verbindungsversuch ${reconnectAttempts}/3 in 5 Sekunden...`)
-          setTimeout(connectWebSocket, 5000)
-        }
-      }
+      })
     }
 
     // Ergebnis der Verarbeitung abrufen

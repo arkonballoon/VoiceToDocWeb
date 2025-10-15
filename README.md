@@ -59,10 +59,21 @@ cd VoiceToDocWeb
 
 ### Umgebungsvariablen konfigurieren
 
+**Backend:**
 ```bash
+cd backend
 cp .env.example .env
+# Bearbeiten Sie .env und tragen Sie Ihren OpenAI API Key ein
 ```
-OpenAI API Key in .env eintragen
+
+**Frontend:**
+```bash
+cd frontend
+cp .env.example .env
+# Bearbeiten Sie .env für Ihre Umgebung
+```
+
+**Detaillierte Konfigurationsanleitung:** Siehe [CONFIGURATION.md](CONFIGURATION.md)
 
 ### Container starten
 

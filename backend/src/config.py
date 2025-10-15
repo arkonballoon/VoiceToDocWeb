@@ -41,9 +41,27 @@ class Settings(BaseSettings):
     # CORS
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
-        "http://192.168.178.67:3000",
-        "http://127.0.0.1:3000"
+        "http://127.0.0.1:3000",
+        "http://frontend:3000"  # Docker internal network
     ]
+    
+    # Dynamische CORS-Origins aus Umgebungsvariablen
+    @property
+    def dynamic_allowed_origins(self) -> List[str]:
+        """Lädt CORS-Origins aus Umgebungsvariablen"""
+        env_origins = os.getenv("ALLOWED_ORIGINS", "")
+        if env_origins:
+            try:
+                # Unterstützt sowohl Komma-getrennte als auch JSON-Format
+                if env_origins.startswith("["):
+                    import json
+                    return json.loads(env_origins)
+                else:
+                    return [origin.strip() for origin in env_origins.split(",") if origin.strip()]
+            except Exception as e:
+                logger.warning(f"Fehler beim Parsen der ALLOWED_ORIGINS: {e}")
+        
+        return self.ALLOWED_ORIGINS
     
     # Audio-Verarbeitung
     AUDIO_MIN_SILENCE_LEN: int = 500
