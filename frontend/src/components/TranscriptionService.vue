@@ -287,7 +287,10 @@ export default {
         try {
           const coarse = window.matchMedia('(pointer: coarse)').matches
           const narrow = window.matchMedia('(max-width: 768px)').matches
-          isMobileLike.value = coarse || narrow
+          const uaMobile = /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent)
+          const touchCapable = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0)
+          // Touch allein (Convertible/Laptop) nicht ausreichen lassen – mit "narrow" koppeln
+          isMobileLike.value = coarse || narrow || uaMobile || (touchCapable && narrow)
         } catch (_) {
           isMobileLike.value = false
         }
@@ -298,6 +301,7 @@ export default {
         const mqNarrow = window.matchMedia('(max-width: 768px)')
         mqCoarse.addEventListener?.('change', computeIsMobileLike)
         mqNarrow.addEventListener?.('change', computeIsMobileLike)
+        window.addEventListener?.('resize', computeIsMobileLike)
       } catch (_) { /* noop */ }
       loadAudioDevices()
       loadTemplates()
@@ -309,6 +313,9 @@ export default {
         socket.value.close()
       }
       clearInterval(heartbeatInterval)
+      try {
+        window.removeEventListener?.('resize', () => {})
+      } catch (_) { /* noop */ }
     })
 
     const appendTranscription = (newText) => {
