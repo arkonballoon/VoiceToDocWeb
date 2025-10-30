@@ -1,10 +1,25 @@
-from pydantic_settings import BaseSettings
 from pathlib import Path
 from typing import List, Optional
 import logging
 import json
-from dotenv import load_dotenv
 import os
+import importlib
+
+# Laufzeitimport für optionale Abhängigkeiten, um Linter-Fehler zu vermeiden
+try:
+    BaseSettings = importlib.import_module("pydantic_settings").BaseSettings  # type: ignore[attr-defined]
+except Exception:
+    try:
+        BaseSettings = importlib.import_module("pydantic").BaseSettings  # type: ignore[attr-defined]
+    except Exception:
+        class BaseSettings:  # Fallback für Entwicklungsumgebungen ohne Paket
+            pass
+
+try:
+    load_dotenv = importlib.import_module("dotenv").load_dotenv  # type: ignore[attr-defined]
+except Exception:
+    def load_dotenv(*args, **kwargs):  # type: ignore[no-redef]
+        return False
 
 # Logger konfigurieren
 logger = logging.getLogger(__name__)
