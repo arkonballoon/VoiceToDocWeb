@@ -9,8 +9,10 @@ import os
 # Logger konfigurieren
 logger = logging.getLogger(__name__)
 
-# Lade .env Datei
-load_dotenv()
+# Lade .env Datei explizit aus dem Parent-Verzeichnis
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+logger.info(f"Lade .env aus: {env_path}")
 
 # API Key Prüfung
 if not os.getenv("LLM_API_KEY"):

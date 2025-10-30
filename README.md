@@ -59,19 +59,24 @@ cd VoiceToDocWeb
 
 ### Umgebungsvariablen konfigurieren
 
-**Backend:**
+Die Anwendung benötigt Umgebungsvariablen für Backend und Frontend. Beispieldateien sind im Repository enthalten:
+
+**Backend konfigurieren:**
 ```bash
 cd backend
 cp .env.example .env
-# Bearbeiten Sie .env und tragen Sie Ihren OpenAI API Key ein
+# Bearbeiten Sie .env und tragen Sie mindestens Ihren OpenAI API Key ein:
+# LLM_API_KEY=your_openai_api_key_here
 ```
 
-**Frontend:**
+**Frontend konfigurieren:**
 ```bash
 cd frontend
 cp .env.example .env
-# Bearbeiten Sie .env für Ihre Umgebung
+# Optional: Passen Sie Backend-URL und andere Einstellungen an
 ```
+
+> **Hinweis:** Die `.env.example` Dateien enthalten alle verfügbaren Konfigurationsoptionen mit Standardwerten und ausführlichen Kommentaren.
 
 **Detaillierte Konfigurationsanleitung:** Siehe [CONFIGURATION.md](CONFIGURATION.md)
 

@@ -3,62 +3,125 @@
     <div class="upload-section">
       <div class="upload-card">
         <h2>Audio-Datei hochladen oder aufnehmen</h2>
-        
-        <!-- Mikrofon Auswahl -->
-        <select 
-          v-model="selectedMicrophone" 
-          class="microphone-select"
-          :disabled="isRecording"
-        >
-          <option value="">Mikrofon auswählen...</option>
-          <option 
-            v-for="device in audioDevices" 
-            :key="device.deviceId" 
-            :value="device.deviceId"
-          >
-            {{ device.label || `Mikrofon ${device.deviceId}` }}
-          </option>
-        </select>
-        
-        <!-- Aufnahme Button -->
-        <button 
-          @click="toggleRecording" 
-          :class="['record-button', { 'recording': isRecording }]"
-          :disabled="isLoading || !selectedMicrophone"
-        >
-          {{ isRecording ? 'Aufnahme stoppen' : 'Aufnahme starten' }}
-        </button>
 
-        <div v-if="isRecording" class="recording-status">
-          Aufnahme läuft... (Automatische Transkription alle 5 Sekunden)
-        </div>
-
-        <div class="upload-area" 
-             :class="{ 'drag-over': isDragging }"
-             @drop.prevent="handleDrop"
-             @dragover.prevent
-             @dragenter.prevent="isDragging = true"
-             @dragleave.prevent="isDragging = false">
-          <input 
-            type="file" 
-            @change="handleFileSelect" 
-            accept="audio/*"
-            ref="fileInput"
-            class="file-input"
-          >
-          <div class="upload-placeholder">
-            <i class="upload-icon">📁</i>
-            <p>{{ selectedFile ? selectedFile.name : 'Datei hierher ziehen oder klicken zum Auswählen' }}</p>
-            <span class="file-types">Unterstützte Formate: WAV, MP3</span>
+        <!-- Mobile Focus Mode -->
+        <div v-if="isMobileLike" class="mobile-focus">
+          <div class="template-selection">
+            <label for="template-select">Template:</label>
+            <select 
+              id="template-select"
+              v-model="selectedTemplateId" 
+              class="template-select"
+            >
+              <option value="">Kein Template (nur transkribieren)</option>
+              <option 
+                v-for="template in templates" 
+                :key="template.id" 
+                :value="template.id"
+              >
+                {{ template.name }}
+              </option>
+            </select>
           </div>
+
+          <button 
+            @click="toggleRecording" 
+            :class="['record-button', { 'recording': isRecording }]"
+            :disabled="isLoading"
+          >
+            {{ isRecording ? 'Aufnahme stoppen' : 'Aufnahme starten' }}
+          </button>
+
+          <div v-if="isRecording" class="recording-status">
+            Aufnahme läuft... (Automatische Transkription alle 5 Sekunden)
+          </div>
+
+          <button 
+            @click="processTemplate" 
+            :disabled="isProcessing || !transcript || !selectedTemplateId"
+            class="upload-button"
+          >
+            {{ isProcessing ? 'Wird verarbeitet...' : 'Fertig – Template verarbeiten' }}
+          </button>
         </div>
-        <button 
-          @click="uploadFile" 
-          :disabled="!selectedFile || isLoading"
-          class="upload-button"
-        >
-          {{ isLoading ? 'Wird verarbeitet...' : 'Transkribieren' }}
-        </button>
+
+        <!-- Desktop UI -->
+        <template v-else>
+          <!-- Template Auswahl -->
+          <div class="template-selection">
+            <label for="template-select">Template für Verarbeitung:</label>
+            <select 
+              id="template-select"
+              v-model="selectedTemplateId" 
+              class="template-select"
+            >
+              <option value="">Kein Template (nur transkribieren)</option>
+              <option 
+                v-for="template in templates" 
+                :key="template.id" 
+                :value="template.id"
+              >
+                {{ template.name }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Mikrofon Auswahl (nur Desktop) -->
+          <select 
+            v-model="selectedMicrophone" 
+            class="microphone-select"
+            :disabled="isRecording"
+          >
+            <option value="">Mikrofon auswählen...</option>
+            <option 
+              v-for="device in audioDevices" 
+              :key="device.deviceId" 
+              :value="device.deviceId"
+            >
+              {{ device.label || `Mikrofon ${device.deviceId}` }}
+            </option>
+          </select>
+          
+          <!-- Aufnahme Button -->
+          <button 
+            @click="toggleRecording" 
+            :class="['record-button', { 'recording': isRecording }]"
+            :disabled="isLoading || !selectedMicrophone"
+          >
+            {{ isRecording ? 'Aufnahme stoppen' : 'Aufnahme starten' }}
+          </button>
+
+          <div v-if="isRecording" class="recording-status">
+            Aufnahme läuft... (Automatische Transkription alle 5 Sekunden)
+          </div>
+
+          <div class="upload-area" 
+               :class="{ 'drag-over': isDragging }"
+               @drop.prevent="handleDrop"
+               @dragover.prevent
+               @dragenter.prevent="isDragging = true"
+               @dragleave.prevent="isDragging = false">
+            <input 
+              type="file" 
+              @change="handleFileSelect" 
+              accept="audio/*"
+              ref="fileInput"
+              class="file-input"
+            >
+            <div class="upload-placeholder">
+              <i class="upload-icon">📁</i>
+              <p>{{ selectedFile ? selectedFile.name : 'Datei hierher ziehen oder klicken zum Auswählen' }}</p>
+              <span class="file-types">Unterstützte Formate: WAV, MP3</span>
+            </div>
+          </div>
+          <button 
+            @click="uploadFile" 
+            :disabled="!selectedFile || isLoading"
+            class="upload-button"
+          >
+            {{ isLoading ? 'Wird verarbeitet...' : 'Transkribieren' }}
+          </button>
+        </template>
       </div>
     </div>
 
@@ -66,11 +129,21 @@
       {{ error }}
     </div>
 
-    <div v-if="transcript" class="editor-section">
+    <div v-if="!isMobileLike && transcript" class="editor-section">
       <div class="editor-header">
         <h3>Transkription</h3>
-        <div class="confidence-badge" v-if="confidence">
-          Konfidenz: {{ (confidence * 100).toFixed(2) }}%
+        <div class="editor-actions">
+          <button 
+            v-if="canShare" 
+            @click="shareTranscript" 
+            class="share-button"
+            title="Transkription teilen"
+          >
+            📤 Teilen
+          </button>
+          <div class="confidence-badge" v-if="confidence">
+            Konfidenz: {{ (confidence * 100).toFixed(2) }}%
+          </div>
         </div>
       </div>
       <QuillEditor
@@ -90,6 +163,7 @@
     </div>
     
     <button 
+      v-if="!isMobileLike"
       @click="processTemplate" 
       :disabled="isProcessing || !transcript"
       :class="{ 'processing': isProcessing }"
@@ -135,6 +209,10 @@ export default {
     const socket = ref(null)
     const progressMessage = ref('')
     const progressStatus = ref('')
+    const templates = ref([])
+    const selectedTemplateId = ref(localStorage.getItem('lastSelectedTemplate') || '')
+    const canShare = ref(navigator.share !== undefined)
+    const isMobileLike = ref(false)
     let reconnectAttempts = 0
     let heartbeatInterval = null
 
@@ -186,8 +264,43 @@ export default {
       }
     }
 
+    const loadTemplates = async () => {
+      try {
+        templates.value = await apiService.getTemplates()
+      } catch (err) {
+        console.error('Fehler beim Laden der Templates:', err)
+        templates.value = []
+      }
+    }
+
+    // Watch für Template-Auswahl - speichere in LocalStorage
+    watch(selectedTemplateId, (newTemplateId) => {
+      if (newTemplateId) {
+        localStorage.setItem('lastSelectedTemplate', newTemplateId)
+      } else {
+        localStorage.removeItem('lastSelectedTemplate')
+      }
+    })
+
     onMounted(() => {
+      const computeIsMobileLike = () => {
+        try {
+          const coarse = window.matchMedia('(pointer: coarse)').matches
+          const narrow = window.matchMedia('(max-width: 768px)').matches
+          isMobileLike.value = coarse || narrow
+        } catch (_) {
+          isMobileLike.value = false
+        }
+      }
+      computeIsMobileLike()
+      try {
+        const mqCoarse = window.matchMedia('(pointer: coarse)')
+        const mqNarrow = window.matchMedia('(max-width: 768px)')
+        mqCoarse.addEventListener?.('change', computeIsMobileLike)
+        mqNarrow.addEventListener?.('change', computeIsMobileLike)
+      } catch (_) { /* noop */ }
       loadAudioDevices()
+      loadTemplates()
       connectWebSocket()
     })
 
@@ -263,14 +376,17 @@ export default {
         confidence.value = null
         error.value = null
 
+        const audioConstraints = {
+          channelCount: 1,
+          sampleRate: 16000,
+          echoCancellation: true,
+          noiseSuppression: true
+        }
+        if (!isMobileLike.value && selectedMicrophone.value) {
+          audioConstraints.deviceId = selectedMicrophone.value
+        }
         mediaStream.value = await navigator.mediaDevices.getUserMedia({ 
-          audio: {
-            deviceId: selectedMicrophone.value,
-            channelCount: 1,
-            sampleRate: 16000,
-            echoCancellation: true,
-            noiseSuppression: true
-          }
+          audio: audioConstraints
         })
 
         recorder.value = new RecordRTC(mediaStream.value, {
@@ -521,6 +637,65 @@ export default {
       console.log(`Status: ${status}, Message: ${message}`)
     }
 
+    const processTemplate = async () => {
+      if (!transcript.value || !selectedTemplateId.value) return
+
+      isProcessing.value = true
+      error.value = null
+      progressMessage.value = 'Starte Verarbeitung...'
+
+      try {
+        const processId = `proc_${Date.now()}`
+        currentProcessId.value = processId
+
+        const response = await fetch(`${API_CONFIG.BASE_URL}/process_template`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            template_id: selectedTemplateId.value,
+            transcription: transcript.value,
+            process_id: processId
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.detail || 'Fehler bei der Template-Verarbeitung')
+        }
+
+        // WebSocket wird Updates über den Fortschritt senden
+      } catch (err) {
+        error.value = `Fehler: ${err.message}`
+        console.error('Template processing error:', err)
+        isProcessing.value = false
+      }
+    }
+
+    const shareTranscript = async () => {
+      if (!navigator.share) {
+        console.log('Web Share API nicht verfügbar')
+        return
+      }
+
+      try {
+        // Konvertiere HTML zu Plain Text für besseres Teilen
+        const tempDiv = document.createElement('div')
+        tempDiv.innerHTML = editableTranscript.value
+        const plainText = tempDiv.textContent || tempDiv.innerText || ''
+
+        await navigator.share({
+          title: 'Transkription',
+          text: plainText,
+        })
+        console.log('Transkription erfolgreich geteilt')
+      } catch (err) {
+        // Benutzer hat Teilen abgebrochen oder Fehler
+        if (err.name !== 'AbortError') {
+          console.error('Fehler beim Teilen:', err)
+        }
+      }
+    }
+
     return {
       selectedFile,
       transcript,
@@ -534,6 +709,10 @@ export default {
       editorOptions,
       audioDevices,
       selectedMicrophone,
+      templates,
+      selectedTemplateId,
+      canShare,
+      isMobileLike,
       handleFileSelect,
       handleDrop,
       uploadFile,
@@ -545,7 +724,9 @@ export default {
       currentProcessId,
       socket,
       progressMessage,
-      progressStatus
+      progressStatus,
+      processTemplate,
+      shareTranscript
     }
   }
 }
@@ -687,6 +868,17 @@ export default {
   cursor: not-allowed;
 }
 
+/* Mobile Focus Mode */
+.mobile-focus {
+  display: grid;
+  gap: 1rem;
+}
+.mobile-focus .template-selection {
+  background: #f8f9fa;
+  padding: 1rem;
+  border-radius: 8px;
+}
+
 .error-message {
   background: #fff2f2;
   color: #d63031;
@@ -706,6 +898,36 @@ export default {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+  gap: 1rem;
+}
+
+.editor-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.share-button {
+  background: #10B981;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.share-button:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.share-button:active {
+  transform: translateY(0);
 }
 
 .confidence-badge {
@@ -715,6 +937,7 @@ export default {
   padding: 0.5rem 1rem;
   border-radius: 20px;
   font-size: 0.9rem;
+  white-space: nowrap;
 }
 
 :deep(.ql-container) {
@@ -787,6 +1010,220 @@ export default {
 button.processing {
   opacity: 0.7;
   cursor: not-allowed;
+}
+
+/* Template Selection Styles */
+.template-selection {
+  margin-bottom: 1.5rem;
+}
+
+.template-selection label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-color);
+  font-weight: 500;
+  font-size: 0.95rem;
+}
+
+.template-select {
+  width: 100%;
+  padding: 0.8rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: white;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.template-select:hover {
+  border-color: var(--primary-color);
+}
+
+.template-select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+/* Mobile Optimizations */
+@media (max-width: 768px) {
+  .transcription-service {
+    padding: 1rem 0;
+  }
+
+  .upload-section {
+    max-width: 100%;
+    padding: 0 1rem;
+  }
+
+  .upload-card {
+    padding: 1.5rem;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.08);
+  }
+
+  .upload-card h2 {
+    font-size: 1.3rem;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Touch-optimierte Buttons */
+  .record-button,
+  .upload-button,
+  .microphone-select,
+  .template-select {
+    min-height: 48px;
+    font-size: 1rem;
+    padding: 0.75rem 1rem;
+  }
+
+  /* Template-Auswahl prominent auf Mobile */
+  .template-selection {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+  }
+
+  .template-selection label {
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+  }
+
+  /* Upload-Bereich kompakter */
+  .upload-area {
+    padding: 1.5rem 1rem;
+    margin: 1rem 0;
+  }
+
+  .upload-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .upload-placeholder p {
+    font-size: 0.9rem;
+    margin: 0.5rem 0;
+  }
+
+  .file-types {
+    font-size: 0.8rem;
+  }
+
+  /* Editor auf Mobile */
+  .editor-section {
+    margin: 1.5rem 0;
+    padding: 0 1rem;
+  }
+
+  .editor-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .editor-actions {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  .share-button {
+    flex: 0 0 auto;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .confidence-badge {
+    font-size: 0.85rem;
+    padding: 0.4rem 0.8rem;
+  }
+
+  /* Quill Editor auf Mobile anpassen */
+  :deep(.ql-container) {
+    min-height: 250px;
+    font-size: 16px; /* Verhindert Auto-Zoom auf iOS */
+  }
+
+  :deep(.ql-toolbar) {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+  }
+
+  :deep(.ql-editor) {
+    padding: 0.75rem;
+  }
+
+  /* Progress Container */
+  .progress-container {
+    margin: 1rem;
+    padding: 0.75rem;
+  }
+
+  .progress-status {
+    font-size: 0.85rem;
+  }
+
+  /* Error Messages */
+  .error-message {
+    margin: 1rem;
+    padding: 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  /* Recording Status */
+  .recording-status {
+    font-size: 0.9rem;
+    padding: 0.5rem;
+  }
+}
+
+/* Touch Feedback für alle Buttons */
+@media (hover: none) and (pointer: coarse) {
+  .record-button:active,
+  .upload-button:active {
+    transform: scale(0.98);
+    opacity: 0.9;
+  }
+
+  .microphone-select:active,
+  .template-select:active {
+    background-color: #f8f9fa;
+  }
+}
+
+/* Landscape Mode auf Mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  .upload-card {
+    padding: 1rem;
+  }
+
+  .upload-card h2 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+  }
+
+  :deep(.ql-container) {
+    min-height: 150px;
+  }
+}
+
+/* Small screens (< 480px) */
+@media (max-width: 480px) {
+  .upload-card h2 {
+    font-size: 1.2rem;
+  }
+
+  .template-selection,
+  .upload-area {
+    border-radius: 6px;
+  }
+
+  :deep(.ql-toolbar .ql-formats) {
+    margin-right: 8px !important;
+  }
 }
 </style>
 

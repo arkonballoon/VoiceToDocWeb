@@ -61,7 +61,9 @@ logs/
 
 # Umgebungsvariablen und Konfiguration
 .env
-.env.*
+.env.local
+.env.*.local
+!.env.example
 config.local.yaml
 *.local.yaml
 *.local.json

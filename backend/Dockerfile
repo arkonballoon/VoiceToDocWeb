@@ -1,9 +1,11 @@
-FROM python:3.10-slim
+FROM nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
 
 WORKDIR /app
 
-# System-Abhängigkeiten installieren
+# Python und System-Abhängigkeiten installieren
 RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
     build-essential \
     ffmpeg \
     git \
@@ -13,10 +15,11 @@ RUN apt-get update && apt-get install -y \
 # Python-Abhängigkeiten installieren
 COPY requirements.txt .
 
-# Pip Cache löschen und Pakete neu installieren
-RUN pip cache purge && \
-    pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+# PyTorch mit CUDA 12.2-Support installieren
+RUN pip3 install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# Andere Abhängigkeiten installieren
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Anwendungscode kopieren
 COPY src/ ./src/
@@ -26,4 +29,4 @@ COPY data/ ./data/
 EXPOSE 8000
 
 # Standardbefehl
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"] 
+CMD ["python3", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"] 

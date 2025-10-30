@@ -19,18 +19,27 @@ class ApiService {
    */
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`
+    const headers = {}
+    
+    // Nur Content-Type setzen, wenn nicht explizit übersprungen
+    if (!options.skipContentType) {
+      headers['Content-Type'] = 'application/json'
+    }
+    
+    // Timeout aus options verwenden oder Fallback auf Standard-Timeout
+    const requestTimeout = options.timeout || this.timeout
+    
     const config = {
-      timeout: this.timeout,
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...headers,
         ...options.headers
       }
     }
 
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout)
+      const timeoutId = setTimeout(() => controller.abort(), requestTimeout)
 
       const response = await fetch(url, {
         ...config,
@@ -72,13 +81,14 @@ class ApiService {
    * @returns {Promise<Object>} - Antwort-Daten
    */
   async post(endpoint, data = null) {
-    const options = { method: 'POST' }
+    const options = { method: 'POST', headers: {} }
     
     if (data instanceof FormData) {
-      // Für FormData den Content-Type nicht setzen
-      delete options.headers?.['Content-Type']
+      // Für FormData KEINEN Content-Type setzen (Browser setzt automatisch mit boundary)
+      options.skipContentType = true
       options.body = data
     } else if (data) {
+      options.headers['Content-Type'] = 'application/json'
       options.body = JSON.stringify(data)
     }
 
@@ -118,7 +128,16 @@ class ApiService {
     const formData = new FormData()
     formData.append('file', file)
     
-    return this.post(API_CONFIG.ENDPOINTS.UPLOAD, formData)
+    // Audio-Upload braucht längeres Timeout (Transkription + LLM-Processing)
+    const options = { 
+      method: 'POST', 
+      headers: {},
+      skipContentType: true,
+      body: formData,
+      timeout: 120000 // 2 Minuten Timeout für Audio-Verarbeitung
+    }
+    
+    return this.request(API_CONFIG.ENDPOINTS.UPLOAD, options)
   }
 
   /**

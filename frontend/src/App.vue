@@ -1,5 +1,11 @@
 <template>
   <div id="app">
+    <!-- Network Status Banner -->
+    <NetworkStatus />
+    
+    <!-- PWA Install Prompt -->
+    <InstallPrompt />
+    
     <header class="header">
       <nav class="nav">
         <div class="nav-links">
@@ -23,6 +29,19 @@
     </div>
   </div>
 </template>
+
+<script>
+import NetworkStatus from './components/NetworkStatus.vue'
+import InstallPrompt from './components/InstallPrompt.vue'
+
+export default {
+  name: 'App',
+  components: {
+    NetworkStatus,
+    InstallPrompt
+  }
+}
+</script>
 
 <style>
 :root {
@@ -95,5 +114,48 @@ body {
 .settings-icon a:hover,
 .settings-icon a.active {
   opacity: 1;
+}
+
+/* Mobile Navigation */
+@media (max-width: 768px) {
+  .header {
+    padding: 0.75rem 1rem;
+    height: auto;
+  }
+
+  .nav-links {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .nav-links a {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+  }
+
+  .settings-icon {
+    right: 1rem;
+  }
+
+  .settings-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .nav-links {
+    gap: 0.25rem;
+  }
+
+  .nav-links a {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+  }
 }
 </style>

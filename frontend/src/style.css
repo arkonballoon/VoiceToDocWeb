@@ -11,13 +11,23 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  
+  /* Mobile-first: Prevent zoom on input focus (iOS) */
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 a {
   font-weight: 500;
   color: #646cff;
   text-decoration: inherit;
+  /* Touch-optimiert */
+  -webkit-tap-highlight-color: rgba(100, 108, 255, 0.2);
 }
+
 a:hover {
   color: #535bf2;
 }
@@ -28,6 +38,8 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  /* Disable pull-to-refresh on mobile */
+  overscroll-behavior-y: contain;
 }
 
 h1 {
@@ -45,13 +57,22 @@ button {
   background-color: #1a1a1a;
   cursor: pointer;
   transition: border-color 0.25s;
+  /* Touch-optimiert */
+  -webkit-tap-highlight-color: rgba(100, 108, 255, 0.2);
+  min-height: 44px; /* Apple Human Interface Guidelines */
 }
+
 button:hover {
   border-color: #646cff;
 }
+
 button:focus,
 button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
+}
+
+button:active {
+  transform: scale(0.98);
 }
 
 .card {
@@ -63,6 +84,54 @@ button:focus-visible {
   margin: 0 auto;
   padding: 2rem;
   text-align: center;
+  width: 100%;
+}
+
+/* Mobile-First Responsive Design */
+@media (max-width: 768px) {
+  #app {
+    padding: 1rem 0.5rem;
+  }
+
+  h1 {
+    font-size: 2em;
+  }
+
+  .card {
+    padding: 1em;
+  }
+
+  /* Größere Touch-Targets auf Mobile */
+  button {
+    min-height: 48px;
+    padding: 0.75em 1.5em;
+  }
+}
+
+@media (max-width: 480px) {
+  #app {
+    padding: 0.5rem 0.25rem;
+  }
+
+  h1 {
+    font-size: 1.5em;
+  }
+}
+
+/* Landscape Mode auf Mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  body {
+    min-height: auto;
+  }
+}
+
+/* PWA: Safe Areas für Notch/Home Indicator */
+@supports (padding: max(0px)) {
+  body {
+    padding-left: max(0px, env(safe-area-inset-left));
+    padding-right: max(0px, env(safe-area-inset-right));
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
+  }
 }
 
 @media (prefers-color-scheme: light) {
@@ -75,5 +144,16 @@ button:focus-visible {
   }
   button {
     background-color: #f9f9f9;
+  }
+}
+
+/* Verbesserte Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

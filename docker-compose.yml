@@ -8,13 +8,18 @@ services:
     volumes:
       - ./backend/src:/app/src
       - ./backend/data/templates:/app/data/templates
-      - ./backend/.env:/app/src/.env
+      - ./backend/.env:/app/.env
     environment:
       - PYTHONPATH=/app/src
-      - LOG_LEVEL=20
-      - 'ALLOWED_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000","http://frontend:3000"]'
     env_file:
       - ./backend/.env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   frontend:
     build:
@@ -25,10 +30,6 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-    environment:
-      - VITE_BACKEND_URL=localhost:8000
-      - VITE_PROTOCOL=http
-      - VITE_WS_PROTOCOL=ws
     env_file:
       - ./frontend/.env
     depends_on:
