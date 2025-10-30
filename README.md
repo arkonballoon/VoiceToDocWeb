@@ -87,6 +87,10 @@ docker-compose up -d
 Frontend: http://localhost:3000
 Backend API: http://localhost:8000
 ```
+
+### Deployment
+
+Für die Bereitstellung auf einem Server (inkl. Variante ohne HTTPS-Transfer, aber mit späterem HTTPS im Betrieb) siehe die ausführliche Anleitung in `DEPLOYMENT.md`.
 ## Manuelles Starten
 ### Backend
 

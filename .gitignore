@@ -98,3 +98,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log* 
 /backend/data/templates/templates.json
+
+# Deployment-Dateien (nicht ins Repo)
+*.tar
+backend-image.tar
+frontend-image.tar
+*.tar.gz
+
+# Cloudflare/Produktions-spezifische Configs
+*.prod.local
+cloudflared-config.yml
+DEPLOYMENT_CLOUDFLARE.md
