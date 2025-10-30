@@ -425,4 +425,3 @@ Nach Tests dokumentieren:
 - [ ] Anzahl erfolgreicher Tests: ___ / ___
 - [ ] Gefundene Bugs: ___
 - [ ] Browser-Kompatibilität: Chrome ✅ Safari ⚠️ Firefox ✅
-

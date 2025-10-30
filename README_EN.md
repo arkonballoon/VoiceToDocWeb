@@ -135,4 +135,3 @@ The application can be configured via the web interface or `config.json`:
 
 
 Developed as a proof of concept for CHOP (Chat Oriented Programming)
-

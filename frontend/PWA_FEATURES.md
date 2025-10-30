@@ -236,4 +236,3 @@ lighthouse http://localhost:3000 --view
 - [Web Share API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Share_API)
 - [Service Worker API](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API)
 - [Workbox](https://developers.google.com/web/tools/workbox)
-

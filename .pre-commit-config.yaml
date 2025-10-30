@@ -3,7 +3,7 @@ repos:
     rev: v1.5.0
     hooks:
       - id: detect-secrets
-        args: ["--baseline", ".secrets.baseline"]
+        args: ["-C", ".", "--baseline", ".secrets.baseline"]
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -12,8 +12,12 @@ repos:
       - id: check-added-large-files
       - id: end-of-file-fixer
 
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.28.0
+  # Nutze das systemweit installierte gitleaks statt der eingebetteten Version
+  - repo: local
     hooks:
-      - id: gitleaks
-        args: ["protect", "--staged", "--redact", "--verbose"]
+      - id: gitleaks-system
+        name: gitleaks (system)
+        entry: gitleaks protect --staged --redact
+        language: system
+        pass_filenames: false
+        stages: [commit, push]

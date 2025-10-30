@@ -120,4 +120,3 @@ def log_function_call(func=None):
     if asyncio.iscoroutinefunction(func):
         return async_wrapper
     return sync_wrapper
-

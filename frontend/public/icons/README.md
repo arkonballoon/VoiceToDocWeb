@@ -23,4 +23,3 @@ Bis echte Icons erstellt sind, kannst du Platzhalter verwenden oder Tools wie:
 
 - Primär: #10B981 (Grün)
 - Sekundär: #7C3AED (Lila/Violett)
-
