@@ -32,7 +32,7 @@
             {{ isRecording ? 'Aufnahme stoppen' : 'Aufnahme starten' }}
           </button>
 
-          <div v-if="isRecording" class="recording-status">
+          <div v-if="isRecording" class="recording-status" role="status" aria-live="polite">
             Aufnahme läuft... (Automatische Transkription alle 5 Sekunden)
           </div>
 
@@ -877,6 +877,97 @@ export default {
   background: #f8f9fa;
   padding: 1rem;
   border-radius: 8px;
+}
+
+/* ——— Mobile Focus: Typografie, Abstände, Brandfarben, Button-Hierarchie ——— */
+.mobile-focus {
+  /* Brandfarben lokal definieren (nicht global überschreiben) */
+  --brand-green: #10B981;
+  --brand-green-darker: #059669;
+  --brand-purple: #7C3AED;
+  --brand-purple-ink: #5B21B6;
+}
+
+.mobile-focus {
+  font-size: 16px;
+}
+
+.mobile-focus .template-selection label {
+  font-weight: 600;
+  color: var(--text-color, #111827);
+}
+
+.mobile-focus .template-select,
+.mobile-focus .record-button,
+.mobile-focus .upload-button {
+  min-height: 52px;
+  font-size: 1rem;
+  border-radius: 10px;
+}
+
+/* Primärer CTA: Aufnahme */
+.mobile-focus .record-button {
+  background: var(--brand-green);
+  border: none;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.25);
+}
+.mobile-focus .record-button:hover {
+  background: var(--brand-green-darker);
+}
+.mobile-focus .record-button.recording {
+  background: #dc3545;
+  box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.15);
+}
+
+/* Sekundärer CTA: Verarbeiten */
+.mobile-focus .upload-button {
+  background: transparent;
+  color: var(--brand-purple);
+  border: 2px solid var(--brand-purple);
+}
+.mobile-focus .upload-button:hover {
+  color: #fff;
+  background: var(--brand-purple);
+  border-color: var(--brand-purple);
+}
+.mobile-focus .upload-button:disabled {
+  opacity: 0.6;
+  border-color: #ccc;
+  color: #999;
+}
+
+/* Recording-Status als Badge mit Pulsindikator */
+.mobile-focus .recording-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(220, 53, 69, 0.1);
+  color: #b91c1c;
+  font-weight: 600;
+  width: fit-content;
+}
+.mobile-focus .recording-status::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #dc3545;
+  box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.6);
+  animation: pulse-dot 1.6s infinite;
+}
+@keyframes pulse-dot {
+  0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.6); }
+  70% { box-shadow: 0 0 0 12px rgba(220, 53, 69, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+
+/* Card-Optik für Mobile-Template Section etwas stärker */
+.mobile-focus .template-selection {
+  border: 1px solid #e5e7eb;
 }
 
 .error-message {
