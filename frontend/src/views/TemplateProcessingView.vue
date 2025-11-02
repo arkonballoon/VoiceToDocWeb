@@ -180,6 +180,8 @@ import { useTranscriptionStore } from '@/stores/transcription'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
 import { v4 as uuidv4 } from 'uuid'
+import { apiService } from '@/services/api.js'
+import { API_CONFIG } from '@/config.js'
 
 export default {
   name: 'TemplateProcessingView',
@@ -221,12 +223,7 @@ export default {
 
     const loadTemplates = async () => {
       try {
-        const response = await fetch('http://localhost:8000/templates/')
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.detail || 'Fehler beim Laden der Templates')
-        }
-        templates.value = await response.json()
+        templates.value = await apiService.getTemplates()
       } catch (error) {
         console.error('Fehler beim Laden der Templates:', error)
         // Optional: Zeige Fehlermeldung in der UI
@@ -235,7 +232,8 @@ export default {
     }
 
     const connectWebSocket = (processId) => {
-      const wsUrl = `ws://localhost:8000/ws/template_processing/${processId}`
+      // Verwende die konfigurierte WebSocket-URL aus config.js
+      const wsUrl = `${API_CONFIG.WS_URL}${API_CONFIG.ENDPOINTS.WS_TEMPLATE_PROCESSING}/${processId}`
       ws.value = new WebSocket(wsUrl)
       
       ws.value.onmessage = (event) => {
@@ -268,11 +266,7 @@ export default {
     
     const loadProcessingResult = async (processId) => {
       try {
-        const response = await fetch(`http://localhost:8000/process_template/${processId}`)
-        if (!response.ok) {
-          throw new Error('Fehler beim Abrufen des Ergebnisses')
-        }
-        processingResult.value = await response.json()
+        processingResult.value = await apiService.getTemplateResult(processId)
       } catch (err) {
         console.error('Fehler:', err)
         error.value = 'Fehler beim Abrufen des Verarbeitungsergebnisses'
@@ -290,22 +284,12 @@ export default {
       progressMessage.value = 'Initialisiere Verarbeitung...'
       
       try {
-        const response = await fetch('http://localhost:8000/process_template', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            template_id: selectedTemplateId.value,
-            transcription: transcription.value
-          })
+        const result = await apiService.processTemplate({
+          template_id: selectedTemplateId.value,
+          transcription: transcription.value
         })
 
-        if (!response.ok) {
-          throw new Error('Fehler bei der Verarbeitung')
-        }
-
-        const { process_id } = await response.json()
+        const { process_id } = result
         connectWebSocket(process_id)
         
       } catch (error) {

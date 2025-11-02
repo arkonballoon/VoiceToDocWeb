@@ -624,11 +624,7 @@ export default {
     // Ergebnis der Verarbeitung abrufen
     const handleTemplateProcessingComplete = async (processId) => {
       try {
-        const response = await fetch(`/api/process_template/${processId}`)
-        if (!response.ok) {
-          throw new Error('Fehler beim Abrufen des Ergebnisses')
-        }
-        const result = await response.json()
+        const result = await apiService.getTemplateResult(processId)
         processedText.value = result.processed_text
         isProcessing.value = false
       } catch (err) {
@@ -655,7 +651,7 @@ export default {
         const processId = `proc_${Date.now()}`
         currentProcessId.value = processId
 
-        const response = await fetch(`${API_CONFIG.BASE_URL}/process_template`, {
+        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.PROCESS}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

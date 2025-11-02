@@ -145,10 +145,12 @@ Das Projekt verwendet:
 ## Konfiguration
 
 Die Anwendung kann über die Web-Oberfläche oder die `config.json` konfiguriert werden:
-- Whisper-Modellgröße (tiny bis large-v3)
+- Whisper-Modellgröße (tiny bis large-v3) - **Jetzt über die Web-UI änderbar**
 - Audio-Parameter (Silence Detection, Chunk Size)
 - Worker-Anzahl für parallele Verarbeitung
-- GPU/CPU Modellauswahl
+- GPU/CPU Modellauswahl (WHISPER_DEVICE_CUDA)
 - Template-Verarbeitung Parameter
+
+**Hinweis:** Änderungen am Whisper-Modell werden automatisch geladen, ohne Neustart des Backends.
 
 Entwickelt als Proof of Concept für CHOP (Chat Oriented Programming)

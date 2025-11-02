@@ -266,7 +266,7 @@ class WebSocketService {
 
   /**
    * Wiederverbindung handhaben
-   * @param {string} url - WebSocket-URL
+   * @param {string} url - WebSocket-URL (vollständige URL)
    * @param {Object} callbacks - Event-Callbacks
    */
   handleReconnect(url, callbacks) {
@@ -278,7 +278,13 @@ class WebSocketService {
       
       setTimeout(() => {
         this.reconnectAttempts.set(url, attempts + 1)
-        this.connect(url, callbacks)
+        // Extrahiere den Endpoint aus der vollständigen URL
+        // z.B. "wss://v2d.arkondev.de/ws/..." -> "/ws/..."
+        // oder "wss://v2d.arkondev.de/api/ws/..." -> "/ws/..." (falls noch altes Format)
+        let endpoint = url.replace(/^wss?:\/\/[^/]+/, '')
+        // Entferne /api/ Prefix falls vorhanden (für WebSocket sollte es nicht da sein)
+        endpoint = endpoint.replace(/^\/api\//, '/')
+        this.connect(endpoint, callbacks)
       }, delay)
     } else {
       console.error('Maximale Wiederverbindungsversuche erreicht')

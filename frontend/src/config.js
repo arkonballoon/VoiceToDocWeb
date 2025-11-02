@@ -1,17 +1,62 @@
 // Zentrale API-Konfiguration
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'localhost:8000'
-const PROTOCOL = import.meta.env.VITE_PROTOCOL || 'http'
-const WS_PROTOCOL = import.meta.env.VITE_WS_PROTOCOL || 'ws'
+// Zur Laufzeit den Hostnamen verwenden, falls keine explizite URL gesetzt ist
+const getBackendURL = () => {
+  const envUrl = import.meta.env.VITE_BACKEND_URL
+  
+  // Ignoriere Default-/Placeholder-Werte - verwende immer Hostname zur Laufzeit
+  const ignoredDefaults = ['localhost:8000', 'api.yourdomain.com', 'yourdomain.com', '']
+  if (envUrl && !ignoredDefaults.includes(envUrl)) {
+    // Nur verwenden, wenn es ein echter, spezifischer Wert ist (z.B. für API-Gateway)
+    return envUrl
+  }
+  
+  // Ansonsten: IMMER zur Laufzeit den Hostnamen verwenden
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname
+    const port = window.location.port
+    
+    // Lokale Entwicklungsumgebung erkennen
+    // Wenn localhost/127.0.0.1 oder Port 3000 (Vite Dev Server) → Lokale Entwicklung
+    const isLocalDev = hostname === 'localhost' || hostname === '127.0.0.1' || port === '3000'
+    
+    if (isLocalDev) {
+      // Lokal: Port 8000 anhängen (Backend läuft auf Port 8000)
+      return `${hostname}:8000`
+    } else {
+      // Production mit Traefik: Kein Port anhängen - Traefik routet direkt auf die Domain
+      return hostname
+    }
+  }
+  
+  // Fallback für SSR/Test
+  return 'localhost:8000'
+}
+
+const BACKEND_URL = getBackendURL()
+// Protokoll zur Laufzeit aus window.location bestimmen
+const PROTOCOL = import.meta.env.VITE_PROTOCOL || (typeof window !== 'undefined' ? window.location.protocol.slice(0, -1) : 'http')
+const WS_PROTOCOL = import.meta.env.VITE_WS_PROTOCOL || (PROTOCOL === 'https' ? 'wss' : 'ws')
+
+// Lokale Entwicklungsumgebung erkennen für Endpoint-Konfiguration
+const isLocalDevelopment = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' || 
+  window.location.hostname === '127.0.0.1' || 
+  window.location.port === '3000'
+)
 
 // API-Konfiguration
 export const API_CONFIG = {
   BASE_URL: `${PROTOCOL}://${BACKEND_URL}`,
   WS_URL: `${WS_PROTOCOL}://${BACKEND_URL}`,
   ENDPOINTS: {
-    UPLOAD: '/upload_audio',
-    TEMPLATES: '/templates/',
-    PROCESS: '/process_template',
-    CONFIG: '/config',
+    // Lokale Entwicklung: KEIN /api/ Prefix (Backend hat keine /api/ Routes)
+    // Production: MIT /api/ Prefix (Traefik entfernt es und leitet an Backend weiter)
+    UPLOAD: isLocalDevelopment ? '/upload_audio' : '/api/upload_audio',
+    TEMPLATES: isLocalDevelopment ? '/templates/' : '/api/templates/',
+    PROCESS: isLocalDevelopment ? '/process_template' : '/api/process_template',
+    CONFIG: isLocalDevelopment ? '/config' : '/api/config',
+    // WebSocket hat in Production separate Route in Traefik ohne /api/ Prefix
+    // Lokal: direkt /ws
     WS: '/ws',
     WS_TEMPLATE_PROCESSING: '/ws/template_processing'
   },
