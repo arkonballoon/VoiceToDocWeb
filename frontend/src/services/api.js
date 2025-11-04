@@ -19,22 +19,21 @@ class ApiService {
    */
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`
-    const headers = {}
     
-    // Nur Content-Type setzen, wenn nicht explizit übersprungen
-    if (!options.skipContentType) {
-      headers['Content-Type'] = 'application/json'
-    }
+    // Header behandeln: FormData hat keine Content-Type, sonst JSON
+    const headers = options.body instanceof FormData
+      ? (options.headers || {})
+      : {
+          'Content-Type': 'application/json',
+          ...(options.headers || {})
+        }
     
     // Timeout aus options verwenden oder Fallback auf Standard-Timeout
     const requestTimeout = options.timeout || this.timeout
     
     const config = {
       ...options,
-      headers: {
-        ...headers,
-        ...options.headers
-      }
+      headers
     }
 
     try {
@@ -49,8 +48,14 @@ class ApiService {
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`)
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.detail || errorData.message || errorMessage
+        } catch {
+          // JSON-Parsing fehlgeschlagen, verwende Standard-Fehlermeldung
+        }
+        throw new Error(errorMessage)
       }
 
       return await response.json()
@@ -84,8 +89,8 @@ class ApiService {
     const options = { method: 'POST', headers: {} }
     
     if (data instanceof FormData) {
-      // Für FormData KEINEN Content-Type setzen (Browser setzt automatisch mit boundary)
-      options.skipContentType = true
+      // Für FormData den Content-Type nicht setzen (Browser setzt automatisch mit Boundary)
+      options.headers = {} // Überschreibe headers komplett für FormData
       options.body = data
     } else if (data) {
       options.headers['Content-Type'] = 'application/json'
@@ -132,7 +137,6 @@ class ApiService {
     const options = { 
       method: 'POST', 
       headers: {},
-      skipContentType: true,
       body: formData,
       timeout: 120000 // 2 Minuten Timeout für Audio-Verarbeitung
     }
@@ -228,8 +232,26 @@ class WebSocketService {
    * @returns {WebSocket} - WebSocket-Instanz
    */
   connect(endpoint, callbacks = {}) {
-    const url = `${API_CONFIG.WS_URL}${endpoint}`
-    const ws = new WebSocket(url)
+    // Prüfe ob endpoint bereits eine vollständige URL ist
+    const url = endpoint.startsWith('ws://') || endpoint.startsWith('wss://') 
+      ? endpoint 
+      : `${API_CONFIG.WS_URL}${endpoint}`
+    
+    // Prüfe ob URL gültig ist
+    if (!url || url === API_CONFIG.WS_URL) {
+      console.error('Ungültige WebSocket-URL:', url)
+      callbacks.onError?.(new Error('Ungültige WebSocket-URL'))
+      return null
+    }
+    
+    let ws
+    try {
+      ws = new WebSocket(url)
+    } catch (error) {
+      console.error('Fehler beim Erstellen der WebSocket-Verbindung:', error)
+      callbacks.onError?.(error)
+      return null
+    }
     
     ws.onopen = (event) => {
       console.log('WebSocket verbunden:', url)
@@ -253,11 +275,13 @@ class WebSocketService {
     }
 
     ws.onclose = (event) => {
-      console.log('WebSocket geschlossen:', event.code, event.reason)
+      console.log('WebSocket geschlossen:', event.code, event.reason || '<empty string>')
       callbacks.onClose?.(event)
       
-      // Automatische Wiederverbindung
-      this.handleReconnect(url, callbacks)
+      // Automatische Wiederverbindung nur wenn nicht manuell geschlossen
+      if (event.code !== 1000) { // 1000 = normaler Close
+        this.handleReconnect(url, callbacks)
+      }
     }
 
     this.connections.set(url, ws)

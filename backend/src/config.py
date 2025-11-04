@@ -13,7 +13,11 @@ except Exception:
         BaseSettings = importlib.import_module("pydantic").BaseSettings  # type: ignore[attr-defined]
     except Exception:
         class BaseSettings:  # Fallback für Entwicklungsumgebungen ohne Paket
-            pass
+            def model_dump(self):
+                """Fallback-Implementierung von model_dump() für Umgebungen ohne Pydantic"""
+                # Gib alle Instanzattribute als Dictionary zurück
+                return {key: value for key, value in self.__dict__.items() 
+                       if not key.startswith('_')}
 
 try:
     load_dotenv = importlib.import_module("dotenv").load_dotenv  # type: ignore[attr-defined]
@@ -175,7 +179,7 @@ class Settings(BaseSettings):
             return True
             
         except Exception as e:
-            logging.error(f"Fehler beim Laden der Konfiguration: {str(e)}")
+            logger.error(f"Fehler beim Laden der Konfiguration: {str(e)}")
             return False
 
     class Config:

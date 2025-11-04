@@ -36,6 +36,7 @@ class FilesystemAdapter(StorageAdapter):
             json.dump([], f, indent=4, ensure_ascii=False)
         logger.info(f"templates.json initialisiert in {self.templates_file}")
     
+    @log_function_call
     async def save_template(self, name: str, content: str, description: Optional[str] = None) -> Dict[str, Any]:
         template_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
@@ -49,19 +50,24 @@ class FilesystemAdapter(StorageAdapter):
             "updated_at": now
         }
         
-        # Speichere Template in separater Datei
-        template_path = self.storage_path / f"{template_id}.json"
-        with open(template_path, 'w', encoding='utf-8') as f:
-            json.dump(template_data, f, indent=4, ensure_ascii=False)
+        try:
+            # Speichere Template in separater Datei
+            template_path = self.storage_path / f"{template_id}.json"
+            with open(template_path, 'w', encoding='utf-8') as f:
+                json.dump(template_data, f, indent=4, ensure_ascii=False)
             
-        # Aktualisiere templates.json
-        templates = await self.get_templates()
-        templates.append(template_data)
-        
-        with open(self.templates_file, 'w', encoding='utf-8') as f:
-            json.dump(templates, f, indent=4, ensure_ascii=False)
+            # Aktualisiere templates.json
+            templates = await self.get_templates()
+            templates.append(template_data)
             
-        return template_data 
+            with open(self.templates_file, 'w', encoding='utf-8') as f:
+                json.dump(templates, f, indent=4, ensure_ascii=False)
+            
+            logger.info(f"Template {template_id} erfolgreich gespeichert: {name} in {template_path}")
+            return template_data
+        except Exception as e:
+            logger.error(f"Fehler beim Speichern des Templates: {str(e)}")
+            raise 
     
     async def get_templates(self) -> List[Dict[str, Any]]:
         """Alle Templates laden"""

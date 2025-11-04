@@ -192,9 +192,12 @@ class TemplateProcessor(Singleton):
                     model=settings.LLM_MODEL,
                     messages=[
                         {"role": "system", "content": """
-                            Extrahiere die im Template-Header als benötigt markierten Informationen 
-                            aus der Transkription. Gib nur die gefundenen Informationen als JSON zurück.
+                            Extrahiere die im Template-Header unter "## Benötigte Informationen" 
+                            markierten Informationen aus der Transkription. 
+                            Gib nur die gefundenen Informationen als JSON zurück.
                             Format: {"field_name": "extracted_value"}
+                            Wenn eine Information nicht gefunden werden kann, verwende einen leeren String "".
+                            Bei Listen gebe die Werte als kommagetrennte Zeichenkette zurück.
                         """},
                         {"role": "user", "content": f"Template:\n{template}\n\nTranskription:\n{transcription}"}
                     ],
@@ -223,7 +226,11 @@ class TemplateProcessor(Singleton):
                 {"role": "system", "content": """
                     Fülle das Template mit den extrahierten Informationen aus.
                     Verwende die gegebenen Informationen.
-                    Verwende dabei die Struktur des Templates ab ##Struktur. Ersetze den Text in den einzelnen Abschnitten durch einen Text der der Beschreibung des Abschnitts entspricht inkl. Beschreibung: und die extrahierten Informationen enthält.
+                    Verwende dabei die Struktur des Templates ab ##Struktur. 
+                    Ersetze den Text "Beschreibung: ..." in den einzelnen Abschnitten durch einen vollständigen Text, 
+                    der die Beschreibung des Abschnitts umsetzt und die extrahierten Informationen enthält.
+                    Die Überschriften (###) und Struktur müssen beibehalten werden.
+                    Formatiere den Text professionell und lesbar.
                 """},
                 {"role": "user", "content": f"""
                     Template:\n{template}\n\n
