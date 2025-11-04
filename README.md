@@ -25,15 +25,18 @@ Hauptmerkmale:
 ## Features
 
 - Audio-Transkription (MP3, WAV, WebM)
-- Live-Audioe mit Echtzeit-Transkription
- Template-Verwaltung für Textbausteine
- Rich-Text-Editor für Transkriptionen
- Template-basierte Textverarbeitung mit GPT-4
- Responsive Design
- Docker-Support für einfache Deployment
- Automatische Modellauswahl (CPU/CUDA)
- Konfigurierbare Whisper-Modelle
- Fortschrittsanzeige bei der Verarbeitung
+- Live-Audioaufnahme mit Echtzeit-Transkription (alle 5 Sekunden)
+- Mobile-optimierte UI mit Live-Transkript-Anzeige
+- Template-Verwaltung für Textbausteine
+- Rich-Text-Editor für Transkriptionen
+- Template-basierte Textverarbeitung mit GPT-4
+- Responsive Design (Desktop, Tablet, Mobile)
+- Progressive Web App (PWA) mit Install-Prompt
+- Docker-Support für einfache Deployment
+- Automatische Modellauswahl (CPU/CUDA)
+- Konfigurierbare Whisper-Modelle (über Web-UI)
+- Fortschrittsanzeige bei der Verarbeitung
+- WebSocket für Live-Updates
 
 ## Technologie-Stack
 
@@ -45,8 +48,8 @@ Hauptmerkmale:
 ## Voraussetzungen
 
 - Docker und Docker Compose
- OpenAI API Key für Template-Verarbeitung
- NVIDIA GPU (optional) für beschleunigte Transkription
+- OpenAI API Key für Template-Verarbeitung
+- NVIDIA GPU (optional) für beschleunigte Transkription
 
 ## Installation und Setup
 
@@ -103,7 +106,7 @@ cd backend
 # Python-Abhängigkeiten installieren
 pip install -r requirements.txt
 # PyTorch Installation (optional, wenn nicht in requirements.txt)
-bash ../install_pytorch.sh
+bash install_pytorch.sh
 # Umgebungsvariablen konfigurieren
 cp .env.example .env
 # Fügen Sie Ihren OpenAI API Key in .env ein
@@ -139,8 +142,25 @@ Das Projekt verwendet:
 - OpenAI GPT-4 für Template-Verarbeitung
 - Docker für Containerisierung
 - WebRTC für Audio-Streaming
+- RecordRTC für Audio-Aufnahme
 - Cursor.ai als IDE
 - Claude-3.5 als KI-Assistent
+
+### Testing
+
+- **Backend**: pytest (siehe `backend/tests/README.md`)
+- **Frontend**: Vitest (vorbereitet, siehe `frontend/tests/README.md`)
+
+Tests ausführen:
+```bash
+# Backend
+cd backend
+pytest
+
+# Frontend (nach Installation von Vitest)
+cd frontend
+npm run test
+```
 
 ## Konfiguration
 
@@ -152,5 +172,39 @@ Die Anwendung kann über die Web-Oberfläche oder die `config.json` konfiguriert
 - Template-Verarbeitung Parameter
 
 **Hinweis:** Änderungen am Whisper-Modell werden automatisch geladen, ohne Neustart des Backends.
+
+## Mobile-Features
+
+VoiceToDoc ist vollständig für mobile Geräte optimiert:
+
+- **Live-Transkription**: Automatische Transkription alle 5 Sekunden während der Aufnahme
+- **Mobile-UI**: Optimierte Benutzeroberfläche für Smartphones
+- **PWA**: Installierbar als App auf dem Home-Screen
+- **Offline-Fähigkeit**: Service Worker für Offline-Nutzung
+- **Touch-Optimierung**: Große Buttons, Touch-Feedback
+- **Auto-Scroll**: Transkript scrollt automatisch zum Ende bei neuen Fragmenten
+
+Weitere Details: Siehe [frontend/PWA_FEATURES.md](frontend/PWA_FEATURES.md) und [frontend/MOBILE_TESTING.md](frontend/MOBILE_TESTING.md)
+
+## Projektstruktur
+
+Für detaillierte Informationen zur Projektstruktur siehe [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+
+## Beitragen
+
+Wir freuen uns über Beiträge! 
+
+**Für Bugs:**
+[Issue erstellen](https://github.com/arkonballoon/VoiceToDocWeb/issues/new?template=bug_report.md)
+
+**Für Features:**
+[Feature vorschlagen](https://github.com/arkonballoon/VoiceToDocWeb/issues/new?template=feature_request.md)
+
+**Workflow:**
+1. Branch erstellen (`feature/...` oder `fix/...`)
+2. Änderungen committen
+3. Pull Request erstellen
+
+Siehe [CONTRIBUTING.md](CONTRIBUTING.md) für Details.
 
 Entwickelt als Proof of Concept für CHOP (Chat Oriented Programming)

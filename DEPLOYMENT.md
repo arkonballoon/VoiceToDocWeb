@@ -52,13 +52,12 @@ Hinweis: Für Produktion später HTTPS aktivieren (z. B. via Caddy oder Nginx+
 
 # Oder manuell:
 docker-compose -f docker-compose.prod.yml build
-docker tag voicetodocweb-backend:latest voicetodocweb-backend:prod
-docker tag voicetodocweb-frontend:latest voicetodocweb-frontend:prod
+# Images werden automatisch mit :prod Tag erstellt
 docker save voicetodocweb-backend:prod -o backend-image.tar
 docker save voicetodocweb-frontend:prod -o frontend-image.tar
 ```
 
-**Wichtig:** Images werden mit dem Tag `:prod` erstellt, nicht `:latest`.
+**Wichtig:** Images werden mit dem Tag `:prod` erstellt (siehe `docker-compose.prod.yml`). Die alten `:latest` Tags werden nicht mehr verwendet.
 
 ### Schritt 2: Dateien auf Server kopieren
 
@@ -258,8 +257,8 @@ docker-compose -f docker-compose.prod.yml up -d
 docker login
 
 # Images taggen
-docker tag voicetodocweb-backend:latest deinusername/voicetodoc-backend:latest
-docker tag voicetodocweb-frontend:latest deinusername/voicetodoc-frontend:latest
+docker tag voicetodocweb-backend:prod deinusername/voicetodoc-backend:latest
+docker tag voicetodocweb-frontend:prod deinusername/voicetodoc-frontend:latest
 
 # Images pushen
 docker push deinusername/voicetodoc-backend:latest

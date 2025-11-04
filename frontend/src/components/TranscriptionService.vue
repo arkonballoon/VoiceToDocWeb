@@ -37,12 +37,36 @@
           </div>
 
           <button 
-            @click="processTemplate" 
-            :disabled="isProcessing || !transcript || !selectedTemplateId"
+            @click="handleTranscriptAction" 
+            :disabled="isProcessing || !transcript"
             class="upload-button"
           >
-            {{ isProcessing ? 'Wird verarbeitet...' : 'Fertig – Template verarbeiten' }}
+            {{ isProcessing ? 'Wird verarbeitet...' 
+               : (selectedTemplateId 
+                  ? 'Fertig – Template verarbeiten' 
+                  : 'Transkript speichern/teilen') }}
           </button>
+        </div>
+
+        <!-- Mobile Transkript-Anzeige -->
+        <div v-if="isMobileLike && (transcript || isRecording)" class="mobile-transcript-view" ref="mobileTranscriptRef">
+          <div class="mobile-transcript-header">
+            <h3>Transkription</h3>
+            <div class="mobile-transcript-actions">
+              <button 
+                v-if="canShare && transcript" 
+                @click="shareTranscript" 
+                class="share-button"
+                title="Transkription teilen"
+              >
+                📤 Teilen
+              </button>
+              <div class="confidence-badge" v-if="confidence && !isRecording">
+                Konfidenz: {{ (confidence * 100).toFixed(1) }}%
+              </div>
+            </div>
+          </div>
+          <div class="mobile-transcript-text" v-html="mobileTranscriptContent"></div>
         </div>
 
         <!-- Desktop UI -->
@@ -174,7 +198,7 @@
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { QuillEditor } from '@vueup/vue-quill'
 import '@vueup/vue-quill/dist/vue-quill.snow.css'
 import { useTranscriptionStore } from '../stores/transcription'
@@ -318,6 +342,19 @@ export default {
       } catch (_) { /* noop */ }
     })
 
+    const mobileTranscriptRef = ref(null)
+
+    // Computed property für Mobile-Transkript-Anzeige
+    const mobileTranscriptContent = computed(() => {
+      if (transcript.value) {
+        return transcript.value
+      }
+      if (isRecording.value) {
+        return '<p style="color: #666; font-style: italic;">Transkription läuft... Bitte warten.</p>'
+      }
+      return ''
+    })
+
     const appendTranscription = (newText) => {
       if (!newText) return
       
@@ -332,6 +369,16 @@ export default {
       
       editableTranscript.value = transcript.value
       transcriptionStore.setTranscription(transcript.value, confidence.value)
+      
+      // Auto-Scroll zum Ende für Mobile-View
+      if (isMobileLike.value && mobileTranscriptRef.value) {
+        setTimeout(() => {
+          const textElement = mobileTranscriptRef.value?.querySelector('.mobile-transcript-text')
+          if (textElement) {
+            textElement.scrollTop = textElement.scrollHeight
+          }
+        }, 100)
+      }
     }
 
     const uploadRecording = async () => {
@@ -372,6 +419,14 @@ export default {
 
       } catch (err) {
         console.error('Fehler beim automatischen Upload:', err)
+        // User-freundliche Fehlermeldung
+        if (err.message.includes('Timeout') || err.name === 'AbortError') {
+          error.value = 'Upload-Timeout: Die Transkription dauert länger als erwartet. Bitte erneut versuchen.'
+        } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+          error.value = 'Netzwerkfehler: Bitte Internetverbindung prüfen.'
+        } else {
+          error.value = `Upload-Fehler: ${err.message}`
+        }
       }
     }
 
@@ -448,7 +503,14 @@ export default {
 
           } catch (err) {
             console.error('Fehler beim Stoppen der Aufnahme:', err)
-            error.value = 'Fehler beim Beenden der Aufnahme'
+            // User-freundliche Fehlermeldung
+            if (err.message.includes('Timeout') || err.name === 'AbortError') {
+              error.value = 'Upload-Timeout: Die finale Transkription dauert länger als erwartet. Bitte erneut versuchen.'
+            } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+              error.value = 'Netzwerkfehler beim Finalen Upload: Bitte Internetverbindung prüfen.'
+            } else {
+              error.value = `Fehler beim Beenden der Aufnahme: ${err.message}`
+            }
           } finally {
             // Cleanup
             if (mediaStream.value) {
@@ -674,6 +736,60 @@ export default {
       }
     }
 
+    const saveTranscript = async () => {
+      if (!transcript.value) return
+
+      // Konvertiere HTML zu Plain Text
+      const tempDiv = document.createElement('div')
+      tempDiv.innerHTML = transcript.value
+      const plainText = tempDiv.textContent || tempDiv.innerText || ''
+
+      // Versuche Web Share API zu verwenden
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Transkription',
+            text: plainText,
+          })
+          console.log('Transkription erfolgreich geteilt')
+          return
+        } catch (err) {
+          // Falls Teilen abgebrochen oder nicht verfügbar, Download anbieten
+          if (err.name === 'AbortError') {
+            return // Benutzer hat abgebrochen
+          }
+        }
+      }
+
+      // Fallback: Download als Textdatei
+      try {
+        const blob = new Blob([plainText], { type: 'text/plain;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `transkription-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+      } catch (err) {
+        console.error('Fehler beim Download:', err)
+        error.value = 'Fehler beim Speichern der Transkription'
+      }
+    }
+
+    const handleTranscriptAction = async () => {
+      if (!transcript.value) return
+
+      if (selectedTemplateId.value) {
+        // Mit Template: Template verarbeiten
+        await processTemplate()
+      } else {
+        // Ohne Template: Transkript speichern/teilen
+        await saveTranscript()
+      }
+    }
+
     const shareTranscript = async () => {
       if (!navigator.share) {
         console.log('Web Share API nicht verfügbar')
@@ -683,7 +799,7 @@ export default {
       try {
         // Konvertiere HTML zu Plain Text für besseres Teilen
         const tempDiv = document.createElement('div')
-        tempDiv.innerHTML = editableTranscript.value
+        tempDiv.innerHTML = editableTranscript.value || transcript.value
         const plainText = tempDiv.textContent || tempDiv.innerText || ''
 
         await navigator.share({
@@ -716,6 +832,8 @@ export default {
       selectedTemplateId,
       canShare,
       isMobileLike,
+      mobileTranscriptRef,
+      mobileTranscriptContent,
       handleFileSelect,
       handleDrop,
       uploadFile,
@@ -729,6 +847,8 @@ export default {
       progressMessage,
       progressStatus,
       processTemplate,
+      handleTranscriptAction,
+      saveTranscript,
       shareTranscript
     }
   }
@@ -880,6 +1000,83 @@ export default {
   background: #f8f9fa;
   padding: 1rem;
   border-radius: 8px;
+}
+
+/* Mobile Transkript-View */
+.mobile-transcript-view {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  max-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mobile-transcript-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.mobile-transcript-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-color, #111827);
+}
+
+.mobile-transcript-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mobile-transcript-text {
+  flex: 1;
+  overflow-y: auto;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  padding: 0.5rem 0;
+  font-size: 0.95rem;
+  color: var(--text-color, #111827);
+  min-height: 50px;
+}
+
+.mobile-transcript-text::-webkit-scrollbar {
+  width: 6px;
+}
+
+.mobile-transcript-text::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.mobile-transcript-text::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.mobile-transcript-text::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
+.mobile-transcript-text :deep(p) {
+  margin: 0.5rem 0;
+  padding: 0.25rem 0;
+}
+
+.mobile-transcript-text :deep(.transcript-segment) {
+  background: #fff;
+  padding: 0.5rem;
+  margin: 0.5rem 0;
+  border-radius: 4px;
+  border-left: 3px solid var(--primary-color, #10B981);
 }
 
 /* ——— Mobile Focus: Typografie, Abstände, Brandfarben, Button-Hierarchie ——— */
@@ -1202,6 +1399,34 @@ button.processing {
 
   .file-types {
     font-size: 0.8rem;
+  }
+
+  /* Mobile Transkript-View */
+  .mobile-transcript-view {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    max-height: 350px;
+  }
+
+  .mobile-transcript-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding-bottom: 0.75rem;
+  }
+
+  .mobile-transcript-header h3 {
+    font-size: 1rem;
+  }
+
+  .mobile-transcript-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .mobile-transcript-text {
+    font-size: 0.9rem;
+    padding: 0.25rem 0;
   }
 
   /* Editor auf Mobile */

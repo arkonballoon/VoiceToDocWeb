@@ -19,9 +19,12 @@
 ### ✅ Funktionalität
 - [ ] Mikrofon-Auswahl funktioniert
 - [ ] Aufnahme starten/stoppen funktioniert
+- [ ] Live-Transkription erscheint während Aufnahme (alle 5 Sekunden)
+- [ ] Transkription wird nach Stopp vollständig angezeigt
+- [ ] Auto-Scroll funktioniert bei neuen Fragmenten
 - [ ] Audio-Upload funktioniert
-- [ ] Transkription wird angezeigt
 - [ ] Template-Auswahl wird gespeichert (LocalStorage)
+- [ ] Transkript ohne Template speichern/teilen funktioniert
 - [ ] Teilen-Button funktioniert (Android)
 
 ### ✅ Netzwerkstabilität

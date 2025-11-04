@@ -38,7 +38,16 @@ VoiceToDoc ist jetzt als Progressive Web App optimiert und bietet eine native Ap
 - Prominente Platzierung über Mikrofon-Auswahl
 - Speichert letzte Auswahl in LocalStorage
 - Einfache Dropdown-Auswahl für unterwegs
+- Template ist optional - Transkript kann auch ohne Template gespeichert/geteilt werden
 - Keine Template-Verwaltung (Desktop-only)
+
+#### Live-Transkript-Anzeige
+- **Während Aufnahme**: Zeigt "Transkription läuft..." an
+- **Live-Updates**: Neue Transkriptions-Fragmente erscheinen automatisch alle 5 Sekunden
+- **Auto-Scroll**: Scrollt automatisch zum Ende bei neuen Fragmenten
+- **Nach Stopp**: Vollständiges Transkript wird angezeigt
+- **Konfidenz-Anzeige**: Zeigt Konfidenz-Wert der Transkription
+- **Teilen-Button**: Direktes Teilen des Transkripts über Web Share API
 
 ### 4. Netzwerkstabilität
 
