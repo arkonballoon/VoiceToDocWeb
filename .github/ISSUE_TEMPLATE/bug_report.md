@@ -1,6 +1,8 @@
 ---
-name: Bug Report
+name: 🐛 Bug Report
 about: Einen Fehler melden
+title: '[BUG] '
+labels: bug
 ---
 
 ## Problem

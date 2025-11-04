@@ -200,6 +200,9 @@ Wir freuen uns über Beiträge!
 **Für Features:**
 [Feature vorschlagen](https://github.com/arkonballoon/VoiceToDocWeb/issues/new?template=feature_request.md)
 
+**Für Fragen:**
+[Frage stellen](https://github.com/arkonballoon/VoiceToDocWeb/issues/new?template=question.md)
+
 **Workflow:**
 1. Branch erstellen (`feature/...` oder `fix/...`)
 2. Änderungen committen

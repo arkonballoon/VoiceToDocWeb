@@ -1,6 +1,8 @@
 ---
-name: Feature Request
+name: ✨ Feature Request
 about: Ein neues Feature vorschlagen
+title: '[FEATURE] '
+labels: enhancement
 ---
 
 ## Feature
