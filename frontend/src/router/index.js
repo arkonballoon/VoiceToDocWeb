@@ -1,8 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
+// Eager loading für Haupt-View (wird auf Mobile am meisten genutzt)
 import TranscriptionView from '../views/TranscriptionView.vue'
-import TemplateManager from '../components/TemplateManager.vue'
-import ConfigurationView from '../views/ConfigurationView.vue'
-import TemplateProcessingView from '../views/TemplateProcessingView.vue'
+
+// Lazy loading für Desktop-Features
+const TemplateManager = () => import('../components/TemplateManager.vue')
+const ConfigurationView = () => import('../views/ConfigurationView.vue')
+const TemplateProcessingView = () => import('../views/TemplateProcessingView.vue')
 
 const routes = [
   {
@@ -13,17 +16,20 @@ const routes = [
   {
     path: '/templates',
     name: 'Templates',
-    component: TemplateManager
+    component: TemplateManager,
+    meta: { title: 'Templates verwalten' }
   },
   {
     path: '/config',
     name: 'Konfiguration',
-    component: ConfigurationView
+    component: ConfigurationView,
+    meta: { title: 'Konfiguration' }
   },
   {
     path: '/process',
     name: 'process',
-    component: TemplateProcessingView
+    component: TemplateProcessingView,
+    meta: { title: 'Template Verarbeitung' }
   }
 ]
 

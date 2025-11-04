@@ -90,7 +90,7 @@
 </template>
 
 <script>
-import { API_BASE_URL } from '../config'
+import { API_CONFIG } from '../config'
 
 export default {
   name: 'ConfigurationView',
@@ -128,7 +128,7 @@ export default {
   methods: {
     async loadConfig() {
       try {
-        const response = await fetch(`${API_BASE_URL}/config`)
+        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CONFIG}`)
         if (!response.ok) throw new Error('Fehler beim Laden der Konfiguration')
         this.config = await response.json()
         this.originalConfig = { ...this.config }
@@ -142,7 +142,7 @@ export default {
       this.successMessage = null
       
       try {
-        const response = await fetch(`${API_BASE_URL}/config`, {
+        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CONFIG}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json'

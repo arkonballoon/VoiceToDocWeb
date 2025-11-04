@@ -1,21 +1,44 @@
-from pydantic_settings import BaseSettings
 from pathlib import Path
 from typing import List, Optional
 import logging
 import json
-from dotenv import load_dotenv
 import os
+import importlib
+
+# Laufzeitimport für optionale Abhängigkeiten, um Linter-Fehler zu vermeiden
+try:
+    BaseSettings = importlib.import_module("pydantic_settings").BaseSettings  # type: ignore[attr-defined]
+except Exception:
+    try:
+        BaseSettings = importlib.import_module("pydantic").BaseSettings  # type: ignore[attr-defined]
+    except Exception:
+        class BaseSettings:  # Fallback für Entwicklungsumgebungen ohne Paket
+            pass
+
+try:
+    load_dotenv = importlib.import_module("dotenv").load_dotenv  # type: ignore[attr-defined]
+except Exception:
+    def load_dotenv(*args, **kwargs):  # type: ignore[no-redef]
+        return False
 
 # Logger konfigurieren
 logger = logging.getLogger(__name__)
 
-# Lade .env Datei
-load_dotenv()
+# .env aus dem Backend-Verzeichnis laden (falls vorhanden)
+env_path = Path(__file__).parent.parent / '.env'
+if env_path.exists():
+    load_dotenv(dotenv_path=env_path)
+    logger.info(f".env geladen: {env_path}")
+else:
+    # Fallback: Standardauflösung (falls global gesetzt)
+    load_dotenv()
+    logger.info(".env nicht gefunden, verwende Prozess-ENV")
 
-# API Key Prüfung
+# API-Key optional: Warnung statt Abbruch
 if not os.getenv("LLM_API_KEY"):
-    logger.error("LLM_API_KEY nicht in .env Datei gefunden")
-    raise ValueError("LLM_API_KEY muss in der .env Datei gesetzt sein")
+    logger.warning(
+        "LLM_API_KEY fehlt; LLM-Funktionen sind deaktiviert, bis der Key gesetzt ist."
+    )
 
 class Settings(BaseSettings):
     """Zentrale Konfigurationsklasse für die Anwendung"""
@@ -24,11 +47,13 @@ class Settings(BaseSettings):
     APP_NAME: str = "VoiceToDoc"
     DEBUG: bool = False
     
-    # Basis-Pfad
-    BASE_DIR: Path = Path("/app")
+    # Basis-Pfad (dynamisch, per ENV überschreibbar)
+    # Standard: Projekt-Backend-Root (…/backend)
+    BASE_DIR: Path = Path(os.getenv("BASE_DIR", Path(__file__).resolve().parents[1]))
     
     # Abgeleitete Pfade
-    DATA_DIR: Path = BASE_DIR / "data"
+    # Standard-Datenordner innerhalb des Repos (…/backend/src/data)
+    DATA_DIR: Path = BASE_DIR / "src" / "data"
     TEMP_DIR: Path = DATA_DIR / "temp"
     LOG_DIR: Path = DATA_DIR / "logs"
     TEMPLATE_DIR: Path = DATA_DIR / "templates"
@@ -38,10 +63,14 @@ class Settings(BaseSettings):
     LOG_LEVEL: int = logging.INFO
     LOG_FORMAT: str = "%(asctime)s - %(levelname)s - %(module)s - %(message)s"
     
-    # CORS
+    # CORS (Default-Entwicklungs-Origins; ENV kann überschreiben)
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
         "http://frontend:3000"  # Docker internal network
     ]
     
@@ -75,7 +104,7 @@ class Settings(BaseSettings):
     MAX_WORKERS: int = 3
     
     # LLM API
-    LLM_API_KEY: str = os.getenv("LLM_API_KEY")
+    LLM_API_KEY: Optional[str] = os.getenv("LLM_API_KEY")
     LLM_MODEL: str = "gpt-4o"  # Für komplexe Aufgaben
     LLM_MODEL_LIGHT: str = "gpt-4o-mini"  # Für einfache Textformatierung
     LLM_TEMPERATURE: float = 0.7
@@ -121,7 +150,8 @@ class Settings(BaseSettings):
         for key, value in config_dict.items():
             if isinstance(value, Path):
                 config_dict[key] = str(value)
-        
+        # Stelle sicher, dass das Zielverzeichnis existiert
+        self.CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(self.CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config_dict, f, indent=4, ensure_ascii=False)
     

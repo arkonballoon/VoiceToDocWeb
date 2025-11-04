@@ -1,0 +1,6 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 Fragen / Support
+    url: https://github.com/arkonballoon/VoiceToDocWeb/issues/new?template=question.md
+    about: Stelle eine Frage oder bitte um Hilfe
+

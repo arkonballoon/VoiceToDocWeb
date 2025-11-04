@@ -1,0 +1,102 @@
+services:
+  backend:
+    image: voicetodocweb-backend:prod  # Wird automatisch von deploy-load-images.sh erstellt
+    container_name: v2d-backend
+    volumes:
+      - ./backend/data/templates:/app/data/templates
+      - ./backend/data/logs:/app/data/logs
+      - ./backend/data/temp:/app/data/temp
+    environment:
+      - PYTHONPATH=/app/src
+    env_file:
+      - ./backend/.env
+    networks:
+      - proxy
+      - v2d
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+
+      # API unter /api auf gleicher Domain
+      - "traefik.http.routers.v2d-api.rule=Host(`v2d.arkondev.de`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.v2d-api.entrypoints=web,websecure"
+      - "traefik.http.routers.v2d-api.priority=100"
+      - "traefik.http.routers.v2d-api.service=v2d-api-svc"
+      - "traefik.http.services.v2d-api-svc.loadbalancer.server.port=8000"
+
+      # Zusätzlicher Fallback-Router ohne Host-Bedingung (höhere Priorität)
+      - "traefik.http.routers.v2d-api-any.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.v2d-api-any.entrypoints=web,websecure"
+      - "traefik.http.routers.v2d-api-any.middlewares=v2d-sec-api,v2d-api-strip"
+      - "traefik.http.routers.v2d-api-any.priority=200"
+      - "traefik.http.routers.v2d-api-any.service=v2d-api-svc"
+
+      # /api für das Backend entfernen (Backend erwartet /templates, /health, ...)
+      - "traefik.http.middlewares.v2d-api-strip.stripprefix.prefixes=/api"
+      - "traefik.http.routers.v2d-api.middlewares=v2d-sec-api,v2d-api-strip"
+
+      # Security-Header (Backend)
+      - "traefik.http.middlewares.v2d-sec-api.headers.stsseconds=31536000"
+      - "traefik.http.middlewares.v2d-sec-api.headers.stsincludesubdomains=true"
+      - "traefik.http.middlewares.v2d-sec-api.headers.stspreload=true"
+      - "traefik.http.middlewares.v2d-sec-api.headers.referrerPolicy=no-referrer"
+
+      # ---------- WebSocket: wss://v2d.arkondev.de/ws/* ----------
+      - "traefik.http.routers.v2d-ws.rule=Host(`v2d.arkondev.de`) && PathPrefix(`/ws`)"
+      - "traefik.http.routers.v2d-ws.entrypoints=web,websecure"
+      - "traefik.http.routers.v2d-ws.priority=100"
+      - "traefik.http.routers.v2d-ws.service=v2d-api-svc"
+      - "traefik.http.routers.v2d-ws.middlewares=v2d-sec-api"
+
+      # Zusätzlicher WS-Fallback-Router ohne Host-Bedingung (höhere Priorität)
+      - "traefik.http.routers.v2d-ws-any.rule=PathPrefix(`/ws`)"
+      - "traefik.http.routers.v2d-ws-any.entrypoints=web,websecure"
+      - "traefik.http.routers.v2d-ws-any.priority=200"
+      - "traefik.http.routers.v2d-ws-any.service=v2d-api-svc"
+      - "traefik.http.routers.v2d-ws-any.middlewares=v2d-sec-api"
+
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+    
+  frontend:
+    image: voicetodocweb-frontend:prod  # Wird automatisch von deploy-load-images.sh erstellt
+    container_name: v2d-frontend
+    environment:
+      - VITE_API_BASE=/api
+      - VITE_WS_BASE=/ws
+    networks:
+      - proxy
+      - v2d
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=proxy"
+
+      # Frontend unter v2d.arkondev.de (alle Requests, /api und /ws werden vom Vite-Proxy weitergereicht)
+      - "traefik.http.routers.v2d-fe.rule=Host(`v2d.arkondev.de`)"
+      - "traefik.http.routers.v2d-fe.entrypoints=web,websecure"
+      - "traefik.http.routers.v2d-fe.priority=1"
+      - "traefik.http.services.v2d-fe.loadbalancer.server.port=3000"
+
+      # Security-Header Middleware (für FE)
+      - "traefik.http.middlewares.v2d-sec-fe.headers.stsseconds=31536000"
+      - "traefik.http.middlewares.v2d-sec-fe.headers.stsincludesubdomains=true"
+      - "traefik.http.middlewares.v2d-sec-fe.headers.stspreload=true"
+      - "traefik.http.middlewares.v2d-sec-fe.headers.referrerPolicy=no-referrer"
+      - "traefik.http.routers.v2d-fe.middlewares=v2d-sec-fe"
+      - "traefik.http.middlewares.v2d-sec-fe.headers.contentSecurityPolicy=upgrade-insecure-requests"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+networks:
+  proxy:
+    external: true
+  v2d:
+    external: true
+    

@@ -1,0 +1,38 @@
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data/templates:/app/data/templates
+      - ./backend/data/logs:/app/data/logs
+      - ./backend/data/temp:/app/data/temp
+    environment:
+      - PYTHONPATH=/app/src
+    env_file:
+      - ./backend/.env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_BACKEND_URL: ${VITE_BACKEND_URL:-api.yourdomain.com}
+        VITE_PROTOCOL: ${VITE_PROTOCOL:-https}
+        VITE_WS_PROTOCOL: ${VITE_WS_PROTOCOL:-wss}
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+

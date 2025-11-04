@@ -1,4 +1,4 @@
-from faster_whisper import WhisperModel
+import whisper
 from pathlib import Path
 import numpy as np
 from typing import Optional, List, Tuple
@@ -14,25 +14,19 @@ class Transcriber(Singleton):
     def _init(self, model_size: str = None, api_key: str = None):
         """Initialisierung des Transcribers"""
         self.model = None
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.client = OpenAI(api_key=api_key or settings.LLM_API_KEY)
         self.load_model(model_size)
     
     def load_model(self, model_size: str = None):
         """Lädt das Whisper-Modell mit den angegebenen Parametern."""
         try:
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            compute_type = "float16" if device == "cuda" else "int8"
-            
             if model_size is None:
-                model_size = settings.WHISPER_DEVICE_CUDA if device == "cuda" else settings.WHISPER_MODEL
+                model_size = settings.WHISPER_DEVICE_CUDA if self.device == "cuda" else settings.WHISPER_MODEL
             
-            logger.info(f"Lade Whisper-Modell: {model_size} auf {device}")
+            logger.info(f"Lade Whisper-Modell: {model_size} auf {self.device}")
             
-            self.model = WhisperModel(
-                model_size, 
-                device=device, 
-                compute_type=compute_type
-            )
+            self.model = whisper.load_model(model_size, device=self.device)
             logger.info(f"Whisper-Modell '{model_size}' erfolgreich geladen")
             
         except Exception as e:
@@ -99,24 +93,27 @@ class Transcriber(Singleton):
         """
         try:
             # Transkription mit Whisper durchführen
-            segments, info = self.model.transcribe(
+            # FP16 für GPU-Beschleunigung nutzen
+            result = self.model.transcribe(
                 str(audio_path),
                 language="de",
                 initial_prompt=previous_text,
-                word_timestamps=True
+                word_timestamps=True,
+                fp16=(self.device == "cuda")  # FP16 nur auf GPU
             )
             
-            # Rohen Text sammeln
-            segments_list = list(segments)  # Konvertiere Generator in Liste
-            raw_text = " ".join([segment.text.strip() for segment in segments_list])
+            # Rohen Text aus dem Result extrahieren
+            raw_text = result["text"].strip()
             
             # Text nachbearbeiten
             processed_text = self.post_process_transcription(raw_text)
             
-            # Konfidenz berechnen
+            # Konfidenz aus Segmenten berechnen (falls vorhanden)
             confidence = 0.0
-            if segments_list:  # Nur berechnen wenn Segmente vorhanden sind
-                confidence = np.mean([segment.avg_logprob for segment in segments_list])
+            if "segments" in result and result["segments"]:
+                # Durchschnittliche Log-Wahrscheinlichkeit über alle Segmente
+                confidences = [seg.get("avg_logprob", 0.0) for seg in result["segments"]]
+                confidence = np.mean(confidences) if confidences else 0.0
             
             logger.info(f"Transkription erfolgreich: {len(processed_text)} Zeichen")
             return processed_text, confidence
@@ -138,16 +135,22 @@ class Transcriber(Singleton):
             with open(temp_path, "wb") as f:
                 f.write(audio_chunk)
             
-            segments, info = self.model.transcribe(
+            result = self.model.transcribe(
                 str(temp_path),
                 language="de",
                 initial_prompt=previous_text,
-                word_timestamps=True
+                word_timestamps=True,
+                fp16=(self.device == "cuda")
             )
             
             # Für Chunks einfache Formatierung
-            text = " ".join([segment.text.strip() for segment in segments])
-            confidence = np.mean([segment.avg_logprob for segment in segments]) if segments else 0.0
+            text = result["text"].strip()
+            
+            # Konfidenz aus Segmenten
+            confidence = 0.0
+            if "segments" in result and result["segments"]:
+                confidences = [seg.get("avg_logprob", 0.0) for seg in result["segments"]]
+                confidence = np.mean(confidences) if confidences else 0.0
             
             temp_path.unlink()
             return text, confidence

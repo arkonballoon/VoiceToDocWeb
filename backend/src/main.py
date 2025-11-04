@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, UploadFile, File, HTTPException, WebSocketDisconnect, Body, BackgroundTasks
+from fastapi import FastAPI, WebSocket, UploadFile, File, HTTPException, WebSocketDisconnect, Body, BackgroundTasks, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -433,6 +433,11 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint für Docker und Monitoring"""
+    return {"status": "healthy", "service": "voicetodoc-backend"}
+
 @app.post("/templates/")
 async def create_template(
     name: str = Body(...),
@@ -539,7 +544,7 @@ async def get_config():
     return config_dict
 
 @app.put("/config")
-async def update_config(config_update: ConfigUpdate):
+async def update_config(config_update: ConfigUpdate, request: Request):
     updated_settings = {}
     valid_models = ["tiny", "base", "small", "medium", "large", "large-v3"]
     needs_transcriber_reload = False
@@ -547,10 +552,17 @@ async def update_config(config_update: ConfigUpdate):
     update_dict = config_update.model_dump(exclude_unset=True)
     for key, value in update_dict.items():
         if value is not None:
-            if key in ["WHISPER_MODEL", "WHISPER_DEVICE_CUDA"] and value not in valid_models:
+            # Nur WHISPER_MODEL und WHISPER_DEVICE_CUDA als Modelle validieren
+            # (WHISPER_DEVICE_CUDA ist irreführend benannt, wird aber als Modell verwendet)
+            if key == "WHISPER_MODEL" and value not in valid_models:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Ungültiges Whisper-Modell für {key}: {value}"
+                    detail=f"Ungültiges Whisper-Modell: {value}. Erlaubt sind: {', '.join(valid_models)}"
+                )
+            if key == "WHISPER_DEVICE_CUDA" and value not in valid_models:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Ungültiges Whisper-Modell für CUDA: {value}. Erlaubt sind: {', '.join(valid_models)}"
                 )
             if key == "MAX_WORKERS" and not (1 <= value <= 10):
                 raise HTTPException(
@@ -570,10 +582,14 @@ async def update_config(config_update: ConfigUpdate):
         
         # Transcriber neu initialisieren wenn nötig
         if needs_transcriber_reload:
-            from transcriber import transcriber_instance
-            transcriber_instance.reload_model()
+            # Verwende request.app.state.transcriber statt nicht-existierender globaler Instanz
+            if hasattr(request.app.state, 'transcriber') and request.app.state.transcriber:
+                request.app.state.transcriber.reload_model()
+            else:
+                logger.warning("Transcriber nicht verfügbar, Neuladen übersprungen")
             
     except Exception as e:
+        logger.error(f"Fehler beim Speichern der Konfiguration: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Fehler beim Speichern der Konfiguration: {str(e)}"

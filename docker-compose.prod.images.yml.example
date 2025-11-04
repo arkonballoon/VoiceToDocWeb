@@ -1,0 +1,33 @@
+# Korrekte docker-compose.prod.yml für bereits importierte Images
+# WICHTIG: image: muss ein einfacher String sein, KEIN Objekt!
+
+services:
+  backend:
+    image: voicetodocweb-backend:prod
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/data/templates:/app/data/templates
+      - ./backend/data/logs:/app/data/logs
+      - ./backend/data/temp:/app/data/temp
+    environment:
+      - PYTHONPATH=/app/src
+    env_file:
+      - ./backend/.env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  frontend:
+    image: voicetodocweb-frontend:prod
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+

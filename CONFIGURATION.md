@@ -8,29 +8,31 @@ Diese Anleitung erklärt, wie Sie die VoiceToDoc-Anwendung für verschiedene Umg
 
 ### Frontend (.env)
 
-Erstellen Sie eine `.env`-Datei im `frontend/`-Verzeichnis:
+**Hinweis:** Die Frontend-Konfiguration ist meist nicht erforderlich, da die Backend-URL automatisch erkannt wird. Erstellen Sie eine `.env`-Datei nur, wenn Sie spezifische Einstellungen benötigen:
 
 ```bash
-# Backend-Verbindung
-VITE_BACKEND_URL=localhost:8000
-VITE_PROTOCOL=http
-VITE_WS_PROTOCOL=ws
+# Backend-Verbindung (optional - wird automatisch erkannt)
+# VITE_BACKEND_URL=localhost:8000
+# VITE_PROTOCOL=http
+# VITE_WS_PROTOCOL=ws
 
-# WebSocket-Konfiguration
-VITE_WS_HEARTBEAT_INTERVAL=30000
-VITE_WS_MAX_RECONNECT_ATTEMPTS=3
-VITE_WS_RECONNECT_DELAY=5000
+# WebSocket-Konfiguration (optional)
+# VITE_WS_HEARTBEAT_INTERVAL=30000
+# VITE_WS_MAX_RECONNECT_ATTEMPTS=3
+# VITE_WS_RECONNECT_DELAY=5000
 
-# Audio-Konfiguration
-VITE_MAX_FILE_SIZE=52428800
-VITE_AUDIO_CHUNK_SIZE=5000
-VITE_AUDIO_SAMPLE_RATE=16000
+# Audio-Konfiguration (optional)
+# VITE_MAX_FILE_SIZE=52428800
+# VITE_AUDIO_CHUNK_SIZE=5000
+# VITE_AUDIO_SAMPLE_RATE=16000
 
-# UI-Konfiguration
-VITE_THEME=light
-VITE_LANGUAGE=de
-VITE_AUTO_SAVE_INTERVAL=30000
+# UI-Konfiguration (optional)
+# VITE_THEME=light
+# VITE_LANGUAGE=de
+# VITE_AUTO_SAVE_INTERVAL=30000
 ```
+
+**Einfachste Methode:** Kopieren Sie `frontend/.env.example` zu `frontend/.env` und kommentieren Sie die Zeilen aus, die Sie nicht benötigen.
 
 ### Backend (.env)
 

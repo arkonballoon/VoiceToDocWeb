@@ -29,15 +29,18 @@ Key features:
 ## Features
 
 - Audio transcription (MP3, WAV, WebM)
-- Live audio recording with real-time transcription
+- Live audio recording with real-time transcription (every 5 seconds)
+- Mobile-optimized UI with live transcript display
 - Template management for text blocks
 - Rich text editor for transcriptions
 - Template-based text processing with GPT-4
-- Responsive design
+- Responsive design (Desktop, Tablet, Mobile)
+- Progressive Web App (PWA) with install prompt
 - Docker support for easy deployment
 - Automatic model selection (CPU/CUDA)
-- Configurable Whisper models
+- Configurable Whisper models (via Web UI)
 - Progress indication during processing
+- WebSocket for live updates
 
 ## Technology Stack
 
@@ -62,10 +65,24 @@ cd VoiceToDocWeb
 ```
 ### Configure environment variables
 
+The application requires environment variables for backend and frontend. Example files are included in the repository:
+
+**Backend configuration:**
 ```bash
+cd backend
 cp .env.example .env
-Add OpenAI API Key to .env
+# Edit .env and add at least your OpenAI API Key:
+# LLM_API_KEY=your_openai_api_key_here
 ```
+
+**Frontend configuration:**
+```bash
+cd frontend
+cp .env.example .env
+# Optional: Adjust backend URL and other settings
+```
+
+> **Note:** The `.env.example` files contain all available configuration options with default values and detailed comments.
 
 ### Start containers
 
@@ -84,7 +101,7 @@ cd backend
 # Install Python dependencies
 pip install -r requirements.txt
 # Install PyTorch (optional, if not included in requirements.txt)
-bash ../install_pytorch.sh
+bash install_pytorch.sh
 # Configure environment variables
 cp .env.example .env
 # Add your OpenAI API Key to .env
@@ -121,18 +138,72 @@ The project uses:
 - OpenAI GPT-4 for template processing
 - Docker for containerization
 - WebRTC for audio streaming
+- RecordRTC for audio recording
 - Cursor.ai as IDE
 - Claude-3.5 as AI assistant
+
+### Testing
+
+- **Backend**: pytest (see `backend/tests/README.md`)
+- **Frontend**: Vitest (prepared, see `frontend/tests/README.md`)
+
+Run tests:
+```bash
+# Backend
+cd backend
+pytest
+
+# Frontend (after installing Vitest)
+cd frontend
+npm run test
+```
 
 ## Configuration
 
 The application can be configured via the web interface or `config.json`:
-- Whisper model size (tiny to large-v3)
+- Whisper model size (tiny to large-v3) - **Now changeable via Web UI**
 - Audio parameters (silence detection, chunk size)
 - Worker count for parallel processing
-- GPU/CPU model selection
+- GPU/CPU model selection (WHISPER_DEVICE_CUDA)
 - Template processing parameters
 
+**Note:** Changes to the Whisper model are automatically loaded without restarting the backend.
+
+## Mobile Features
+
+VoiceToDoc is fully optimized for mobile devices:
+
+- **Live Transcription**: Automatic transcription every 5 seconds during recording
+- **Mobile UI**: Optimized user interface for smartphones
+- **PWA**: Installable as an app on the home screen
+- **Offline Capability**: Service Worker for offline usage
+- **Touch Optimization**: Large buttons, touch feedback
+- **Auto-Scroll**: Transcript automatically scrolls to the end on new fragments
+
+For more details, see [frontend/PWA_FEATURES.md](frontend/PWA_FEATURES.md) and [frontend/MOBILE_TESTING.md](frontend/MOBILE_TESTING.md)
+
+## Project Structure
+
+For detailed information about the project structure, see [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)
+
+## Contributing
+
+Contributions are welcome!
+
+**For Bugs:**
+[Create Issue](https://github.com/arkonballoon/VoiceToDocWeb/issues/new?template=bug_report.md)
+
+**For Features:**
+[Suggest Feature](https://github.com/arkonballoon/VoiceToDocWeb/issues/new?template=feature_request.md)
+
+**For Questions:**
+[Ask Question](https://github.com/arkonballoon/VoiceToDocWeb/issues/new?template=question.md)
+
+**Workflow:**
+1. Create branch (`feature/...` or `fix/...`)
+2. Commit changes
+3. Create Pull Request
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 Developed as a proof of concept for CHOP (Chat Oriented Programming)
-
