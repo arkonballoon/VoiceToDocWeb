@@ -181,7 +181,9 @@ class ApiService {
       timeout: 60000 // 60 Sekunden Timeout für Datei-Upload
     }
     
-    return this.request(`${API_CONFIG.ENDPOINTS.TEMPLATES}/upload`, options)
+    // Entferne trailing slash von TEMPLATES und füge /upload hinzu
+    const templatesEndpoint = API_CONFIG.ENDPOINTS.TEMPLATES.replace(/\/$/, '')
+    return this.request(`${templatesEndpoint}/upload`, options)
   }
 
   /**
@@ -219,6 +221,56 @@ class ApiService {
    */
   async getTemplateResult(processId) {
     return this.get(`${API_CONFIG.ENDPOINTS.PROCESS}/${processId}`)
+  }
+
+  /**
+   * Format-spezifische Ausgabedatei herunterladen
+   * @param {string} processId - Prozess-ID
+   * @returns {Promise<void>} - Löst Download aus
+   */
+  async downloadProcessedFile(processId) {
+    const url = `${this.baseURL}${API_CONFIG.ENDPOINTS.PROCESS}/${processId}/download`
+    
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {}
+      })
+
+      if (!response.ok) {
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.detail || errorData.message || errorMessage
+        } catch {
+          // JSON-Parsing fehlgeschlagen, verwende Standard-Fehlermeldung
+        }
+        throw new Error(errorMessage)
+      }
+
+      // Hole Dateinamen aus Content-Disposition Header
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = `processed_${processId}`
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i)
+        if (filenameMatch) {
+          filename = filenameMatch[1]
+        }
+      }
+
+      // Erstelle Blob und löse Download aus
+      const blob = await response.blob()
+      const downloadUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(downloadUrl)
+    } catch (error) {
+      throw error
+    }
   }
 
   /**

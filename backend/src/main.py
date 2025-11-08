@@ -1,6 +1,6 @@
 from fastapi import FastAPI, WebSocket, UploadFile, File, HTTPException, WebSocketDisconnect, Body, BackgroundTasks, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.openapi.utils import get_openapi
 import asyncio
@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any, Callable, Awaitable
 from pathlib import Path
 import uuid
 import logging
+import shutil
 from transcriber import Transcriber
 from audio_processor import AudioProcessor
 from queue_manager import TranscriptionQueueManager
@@ -28,15 +29,16 @@ import math
 LOG_DIR = Path("/app/data/logs")
 TEMPLATE_PATH = Path("/app/data/templates")
 TEMP_DIR = Path("/app/data/temp")
+PROCESSED_PATH = Path("/app/data/processed")
 
 # Verzeichnisse erstellen
-for directory in [LOG_DIR, TEMPLATE_PATH, TEMP_DIR]:
+for directory in [LOG_DIR, TEMPLATE_PATH, TEMP_DIR, PROCESSED_PATH]:
     directory.mkdir(parents=True, exist_ok=True)
 
 # Logger Setup
 configure_logging(
     log_file=LOG_DIR / "app.log",
-    level=settings.LOG_LEVEL
+    level=settings.log_level  # Verwende die Property, die String/Int konvertiert
 )
 
 logger = get_logger(__name__)
@@ -503,9 +505,15 @@ async def upload_template_file(
             from utils.prompt_generator import PromptGenerator
             
             placeholders_set = PlaceholderExtractor.extract_from_file(temp_file)
+            logger.info(f"Extrahierte Platzhalter aus {file_format}-Datei: {placeholders_set}")
+            
+            # Warnung wenn keine Platzhalter gefunden wurden
+            if not placeholders_set:
+                logger.warning(f"Keine Platzhalter im Format {{{{feldname}}}} in der {file_format}-Datei gefunden")
             
             # Generiere Standard-Prompts
             placeholders_dict = PromptGenerator.generate_prompts_for_placeholders(placeholders_set)
+            logger.info(f"Generierte Platzhalter-Prompts: {placeholders_dict}")
             
             # Konvertiere Datei zu Text für content-Feld
             # Für Word/Excel speichern wir den Dateipfad und extrahieren Text
@@ -527,9 +535,10 @@ async def upload_template_file(
                 content_text = ""
             
             # Verschiebe Datei in Template-Verzeichnis
+            # Verwende shutil.move() statt rename() für cross-device Unterstützung
             template_id = str(uuid.uuid4())
             template_file_path = TEMPLATE_PATH / f"{template_id}{file_extension}"
-            temp_file.rename(template_file_path)
+            shutil.move(str(temp_file), str(template_file_path))
             
             # Speichere Template
             template_name = name or Path(file.filename).stem if file.filename else f"Template {template_id[:8]}"
@@ -541,6 +550,16 @@ async def upload_template_file(
                 placeholders=placeholders_dict,
                 file_path=str(template_file_path)
             )
+            
+            # Füge Warnung hinzu, wenn keine Platzhalter gefunden wurden
+            if not placeholders_dict:
+                template_dict = template.model_dump() if hasattr(template, 'model_dump') else dict(template)
+                template_dict['_warning'] = (
+                    "Keine Platzhalter im Format {{feldname}} in der Datei gefunden. "
+                    "Bitte fügen Sie Platzhalter im Format {{feldname}} in Ihre Excel-Datei ein, "
+                    "z.B. in Zellen als Text oder in Formeln."
+                )
+                return template_dict
             
             return template
             
@@ -590,7 +609,7 @@ async def delete_template(template_id: str):
 async def update_template(template_id: str, template_update: TemplateUpdate):
     """Aktualisiert ein bestehendes Template"""
     try:
-        updated_template = app.state.template_service.update_template(template_id, template_update)
+        updated_template = await app.state.template_service.update_template(template_id, template_update)
         return updated_template
     except TemplateNotFoundError:
         raise HTTPException(
@@ -599,9 +618,10 @@ async def update_template(template_id: str, template_update: TemplateUpdate):
         )
     except Exception as e:
         logger.error(f"Fehler beim Aktualisieren des Templates: {str(e)}")
+        logger.exception(e)
         raise HTTPException(
             status_code=500,
-            detail="Interner Serverfehler beim Aktualisieren des Templates"
+            detail=f"Fehler beim Aktualisieren des Templates: {str(e)}"
         )
 
 # Definiere das Schema für Konfigurationsänderungen
@@ -766,7 +786,9 @@ async def process_template(
             request.transcription,
             process_id,
             app.state.template_processor,
-            template.placeholders  # Platzhalter-Prompts übergeben
+            template.placeholders,  # Platzhalter-Prompts übergeben
+            template,  # Vollständiges Template-Objekt
+            PROCESSED_PATH  # Ausgabeverzeichnis
         )
         
         return {"process_id": process_id, "status": "processing"}
@@ -780,7 +802,9 @@ async def process_template_background(
     transcription: str, 
     process_id: str,
     template_processor: TemplateProcessor,
-    placeholders: Optional[Dict[str, str]] = None
+    placeholders: Optional[Dict[str, str]] = None,
+    template_obj: Optional[Any] = None,
+    output_dir: Optional[Path] = None
 ):
     """Führt die Template-Verarbeitung im Hintergrund durch und speichert das Ergebnis"""
     try:
@@ -788,7 +812,9 @@ async def process_template_background(
             template, 
             transcription, 
             process_id,
-            placeholders
+            placeholders,
+            template_obj,  # Vollständiges Template-Objekt
+            output_dir  # Ausgabeverzeichnis
         )
         processing_results[process_id] = result
     except Exception as e:
@@ -809,6 +835,60 @@ async def get_template_result(process_id: str):
     # del processing_results[process_id]
     
     return result
+
+@app.get("/process_template/{process_id}/download")
+async def download_processed_file(process_id: str):
+    """Lädt die format-spezifische Ausgabedatei herunter"""
+    if process_id not in processing_results:
+        raise HTTPException(
+            status_code=404,
+            detail="Verarbeitungsergebnis nicht gefunden"
+        )
+    
+    result = processing_results[process_id]
+    
+    # Prüfe, ob output_file_path vorhanden ist
+    if "error" in result:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Fehler bei der Verarbeitung: {result['error']}"
+        )
+    
+    if "output_file_path" not in result:
+        raise HTTPException(
+            status_code=404,
+            detail="Keine format-spezifische Ausgabedatei verfügbar"
+        )
+    
+    file_path = Path(result["output_file_path"])
+    
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Ausgabedatei nicht gefunden"
+        )
+    
+    # Bestimme Content-Type basierend auf Dateierweiterung
+    content_type_map = {
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ".doc": "application/msword",
+        ".xls": "application/vnd.ms-excel"
+    }
+    
+    content_type = content_type_map.get(file_path.suffix.lower(), "application/octet-stream")
+    
+    # Bestimme Dateinamen für Download
+    filename = file_path.name
+    
+    return FileResponse(
+        path=str(file_path),
+        media_type=content_type,
+        filename=filename,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        }
+    )
 
 if __name__ == "__main__":
     import uvicorn

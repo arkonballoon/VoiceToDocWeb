@@ -88,19 +88,57 @@ class PlaceholderExtractor:
         try:
             from openpyxl import load_workbook
             
-            workbook = load_workbook(file_path, data_only=True)
             all_text = []
             
-            # Durchlaufe alle Arbeitsblätter
-            for sheet_name in workbook.sheetnames:
-                sheet = workbook[sheet_name]
-                for row in sheet.iter_rows(values_only=True):
-                    for cell_value in row:
-                        if cell_value is not None:
-                            all_text.append(str(cell_value))
+            # WICHTIG: Mit data_only=False liest openpyxl Formeln als Strings (z.B. "=A1+B1")
+            # Mit data_only=True liest es nur die berechneten Werte
+            # Wir brauchen BEIDES: Formeln (können Platzhalter enthalten) UND berechnete Werte
+            try:
+                workbook = load_workbook(file_path, data_only=False)
+                for sheet_name in workbook.sheetnames:
+                    sheet = workbook[sheet_name]
+                    logger.debug(f"Verarbeite Arbeitsblatt: {sheet_name} (Formeln und Werte)")
+                    for row in sheet.iter_rows():
+                        for cell in row:
+                            if cell.value is not None:
+                                cell_str = str(cell.value)
+                                all_text.append(cell_str)
+                                # Wenn es eine Formel ist (beginnt mit =), ist das der Formel-Text
+                                if cell.data_type == 'f' or (isinstance(cell.value, str) and cell.value.startswith('=')):
+                                    logger.debug(f"Formel gefunden: {cell_str[:200]}")
+            except Exception as e:
+                logger.warning(f"Fehler beim Lesen von Formeln: {str(e)}")
+                logger.exception(e)
             
+            # Dann mit data_only=True für berechnete Werte (falls vorhanden)
+            try:
+                workbook = load_workbook(file_path, data_only=True)
+                for sheet_name in workbook.sheetnames:
+                    sheet = workbook[sheet_name]
+                    for row in sheet.iter_rows(values_only=True):
+                        for cell_value in row:
+                            if cell_value is not None:
+                                all_text.append(str(cell_value))
+            except Exception as e:
+                logger.warning(f"Fehler beim Lesen berechneter Werte: {str(e)}")
+            
+            # Debug: Zeige ersten 500 Zeichen des extrahierten Textes
             text = '\n'.join(all_text)
-            return PlaceholderExtractor.extract_from_text(text)
+            logger.debug(f"Extrahierter Text aus XLSX (erste 500 Zeichen): {text[:500]}")
+            logger.debug(f"Gesamte Textlänge: {len(text)} Zeichen")
+            
+            placeholders = PlaceholderExtractor.extract_from_text(text)
+            logger.info(f"Extrahierte Platzhalter aus XLSX: {placeholders}")
+            
+            # Wenn keine Platzhalter gefunden wurden, zeige Beispiel-Zellen
+            if not placeholders:
+                logger.warning(f"Keine Platzhalter im Format {{{{feldname}}}} gefunden in {file_path}")
+                # Zeige erste 10 nicht-leere Zellen als Hinweis
+                sample_cells = [t for t in all_text[:20] if t and len(t.strip()) > 0]
+                if sample_cells:
+                    logger.info(f"Beispiel-Zellen-Inhalte (erste 10): {sample_cells[:10]}")
+            
+            return placeholders
             
         except ImportError:
             logger.error("openpyxl ist nicht installiert")

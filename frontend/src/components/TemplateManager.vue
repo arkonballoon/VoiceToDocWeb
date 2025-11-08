@@ -84,6 +84,26 @@
             </table>
           </div>
           
+          <!-- Warnung wenn keine Platzhalter vorhanden -->
+          <div v-if="currentTemplate.file_format && currentTemplate.file_format !== 'markdown' && (!currentTemplate.placeholders || Object.keys(currentTemplate.placeholders).length === 0)" 
+               class="placeholder-warning">
+            <h4>⚠️ Keine Platzhalter gefunden</h4>
+            <p>
+              In dieser {{ currentTemplate.file_format.toUpperCase() }}-Datei wurden keine Platzhalter im Format <code>&#123;&#123;feldname&#125;&#125;</code> gefunden.
+            </p>
+            <p>
+              <strong>So fügen Sie Platzhalter hinzu:</strong>
+            </p>
+            <ul>
+              <li>Fügen Sie Platzhalter im Format <code>&#123;&#123;feldname&#125;&#125;</code> in Ihre Excel-Datei ein</li>
+              <li>Platzhalter können als Text in Zellen stehen, z.B.: <code>&#123;&#123;projektname&#125;&#125;</code></li>
+              <li>Oder in Formeln verwendet werden, z.B.: <code>="Projekt: "&amp;&#123;&#123;projektname&#125;&#125;</code></li>
+            </ul>
+            <p>
+              Laden Sie die Datei anschließend erneut hoch, um die Platzhalter zu erkennen.
+            </p>
+          </div>
+          
           <div class="form-group editor-container" v-if="!currentTemplate.file_format || currentTemplate.file_format === 'markdown'">
             <label>Inhalt:</label>
             <MdEditor
@@ -200,10 +220,18 @@ export default {
         await this.loadTemplates()
         // Öffne Bearbeitungsdialog für das neue Template
         this.editTemplate(template)
-        alert('Template erfolgreich hochgeladen! Platzhalter wurden automatisch erkannt.')
+        
+        // Prüfe ob Warnung vorhanden ist (keine Platzhalter gefunden)
+        if (template._warning) {
+          alert('⚠️ ' + template._warning)
+        } else if (template.placeholders && Object.keys(template.placeholders).length > 0) {
+          alert(`✅ Template erfolgreich hochgeladen! ${Object.keys(template.placeholders).length} Platzhalter wurden automatisch erkannt.`)
+        } else {
+          alert('✅ Template erfolgreich hochgeladen!')
+        }
       } catch (error) {
         console.error('Fehler beim Hochladen:', error)
-        alert('Fehler beim Hochladen der Datei: ' + (error.message || 'Unbekannter Fehler'))
+        alert('❌ Fehler beim Hochladen der Datei: ' + (error.message || 'Unbekannter Fehler'))
       } finally {
         this.isUploading = false
         // Reset file input
@@ -555,5 +583,43 @@ export default {
   font-size: 0.9rem;
   color: #666;
   font-style: italic;
+}
+
+.placeholder-warning {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #fff3cd;
+  border: 2px solid #ffc107;
+  border-radius: 4px;
+  color: #856404;
+}
+
+.placeholder-warning h4 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  color: #856404;
+}
+
+.placeholder-warning p {
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+
+.placeholder-warning code {
+  background: #fff;
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  font-family: monospace;
+  color: #d63384;
+  border: 1px solid #ffc107;
+}
+
+.placeholder-warning ul {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.placeholder-warning li {
+  margin: 0.25rem 0;
 }
 </style> 

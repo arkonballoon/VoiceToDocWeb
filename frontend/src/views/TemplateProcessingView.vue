@@ -22,13 +22,24 @@
         <div v-if="processingResult" class="template-editor-section">
           <div class="template-header">
             <h3>Template Ausgabe</h3>
-            <div class="validation-badge" 
-              :class="{
-                'valid': processingResult.validation_result?.is_valid,
-                'needs-revision': processingResult.validation_result?.needs_revision
-              }"
-            >
-              {{ getValidationStatus }}
+            <div class="header-actions">
+              <div class="validation-badge" 
+                :class="{
+                  'valid': processingResult.validation_result?.is_valid,
+                  'needs-revision': processingResult.validation_result?.needs_revision
+                }"
+              >
+                {{ getValidationStatus }}
+              </div>
+              <button 
+                v-if="processingResult.output_file_path" 
+                @click="downloadProcessedFile"
+                class="download-button"
+                title="Format-spezifische Datei herunterladen"
+              >
+                <i class="fas fa-download"></i>
+                Download
+              </button>
             </div>
           </div>
           
@@ -209,6 +220,7 @@ export default {
     const progressMessage = ref('')
     const status = ref('')
     const ws = ref(null)
+    const currentProcessId = ref(null)
     
     // Watch für Änderungen im Store
     watch(
@@ -267,11 +279,26 @@ export default {
     const loadProcessingResult = async (processId) => {
       try {
         processingResult.value = await apiService.getTemplateResult(processId)
+        currentProcessId.value = processId // Speichere process_id für Download
       } catch (err) {
         console.error('Fehler:', err)
         error.value = 'Fehler beim Abrufen des Verarbeitungsergebnisses'
       } finally {
         isProcessing.value = false // Status zurücksetzen
+      }
+    }
+    
+    const downloadProcessedFile = async () => {
+      if (!currentProcessId.value) {
+        error.value = 'Keine Prozess-ID verfügbar'
+        return
+      }
+      
+      try {
+        await apiService.downloadProcessedFile(currentProcessId.value)
+      } catch (err) {
+        console.error('Fehler beim Download:', err)
+        error.value = err.message || 'Fehler beim Herunterladen der Datei'
       }
     }
     
@@ -376,7 +403,8 @@ export default {
       getValidationStatus,
       progress,
       progressMessage,
-      status
+      status,
+      downloadProcessedFile
     }
   }
 }
@@ -570,6 +598,38 @@ export default {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.download-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.download-button:hover {
+  background-color: var(--primary-color-dark, #0056b3);
+}
+
+.download-button:active {
+  transform: scale(0.98);
+}
+
+.download-button i {
+  font-size: 0.9rem;
 }
 
 .validation-badge {

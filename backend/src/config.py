@@ -64,7 +64,31 @@ class Settings(BaseSettings):
     CONFIG_FILE: Path = DATA_DIR / "config.json"
     
     # Logging
-    LOG_LEVEL: int = logging.INFO
+    # LOG_LEVEL kann als Integer (10, 20, 30, 40, 50) oder String ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL") gesetzt werden
+    LOG_LEVEL: int | str = logging.INFO
+    
+    @property
+    def log_level(self) -> int:
+        """Konvertiert LOG_LEVEL zu einem Integer-Wert"""
+        if isinstance(self.LOG_LEVEL, int):
+            return self.LOG_LEVEL
+        elif isinstance(self.LOG_LEVEL, str):
+            level_map = {
+                "DEBUG": logging.DEBUG,
+                "INFO": logging.INFO,
+                "WARNING": logging.WARNING,
+                "ERROR": logging.ERROR,
+                "CRITICAL": logging.CRITICAL
+            }
+            level_upper = self.LOG_LEVEL.upper()
+            if level_upper in level_map:
+                return level_map[level_upper]
+            else:
+                logger.warning(f"Unbekanntes Log-Level '{self.LOG_LEVEL}', verwende INFO")
+                return logging.INFO
+        else:
+            return logging.INFO
+    
     LOG_FORMAT: str = "%(asctime)s - %(levelname)s - %(module)s - %(message)s"
     
     # CORS (Default-Entwicklungs-Origins; ENV kann überschreiben)

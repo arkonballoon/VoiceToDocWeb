@@ -7,7 +7,7 @@
     "LOG_DIR": "/app/src/data/logs",
     "TEMPLATE_DIR": "/app/src/data/templates",
     "CONFIG_FILE": "/app/src/data/config.json",
-    "LOG_LEVEL": 20,
+    "LOG_LEVEL": 10,
     "LOG_FORMAT": "%(asctime)s - %(levelname)s - %(module)s - %(message)s",
     "ALLOWED_ORIGINS": [
         "http://localhost:3000",
@@ -20,7 +20,7 @@
     "AUDIO_SILENCE_THRESH": -32,
     "AUDIO_MIN_CHUNK_LENGTH": 2000,
     "AUDIO_MAX_CHUNK_LENGTH": 5000,
-    "WHISPER_MODEL": "base",
+    "WHISPER_MODEL": "large-v3",
     "WHISPER_DEVICE_CUDA": "large-v3",
     "MAX_WORKERS": 3,
     "LLM_API_KEY": "",

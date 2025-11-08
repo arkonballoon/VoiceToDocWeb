@@ -6,6 +6,7 @@ import TranscriptionView from '../views/TranscriptionView.vue'
 const TemplateManager = () => import('../components/TemplateManager.vue')
 const ConfigurationView = () => import('../views/ConfigurationView.vue')
 const TemplateProcessingView = () => import('../views/TemplateProcessingView.vue')
+const HelpView = () => import('../views/HelpView.vue')
 
 const routes = [
   {
@@ -30,6 +31,12 @@ const routes = [
     name: 'process',
     component: TemplateProcessingView,
     meta: { title: 'Template Verarbeitung' }
+  },
+  {
+    path: '/help',
+    name: 'Hilfe',
+    component: HelpView,
+    meta: { title: 'Hilfe - Template-Vorbereitung' }
   }
 ]
 
