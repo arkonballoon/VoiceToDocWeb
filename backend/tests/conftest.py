@@ -49,6 +49,23 @@ def pytest_configure(config):
         mock_client.chat.completions.create.return_value = mock_response
         mock_openai.OpenAI = MagicMock(return_value=mock_client)
         sys.modules["openai"] = mock_openai
+    
+    # Mock pydub vor Import
+    if "pydub" not in sys.modules:
+        mock_pydub = MagicMock()
+        mock_audio_segment = MagicMock()
+        mock_detect_nonsilent = MagicMock(return_value=[])
+        mock_pydub.AudioSegment = mock_audio_segment
+        mock_pydub.silence = MagicMock()
+        mock_pydub.silence.detect_nonsilent = mock_detect_nonsilent
+        sys.modules["pydub"] = mock_pydub
+        sys.modules["pydub.silence"] = mock_pydub.silence
+    
+    # Mock fastapi vor Import
+    if "fastapi" not in sys.modules:
+        mock_fastapi = MagicMock()
+        mock_fastapi.HTTPException = Exception
+        sys.modules["fastapi"] = mock_fastapi
 
 
 @pytest.fixture
