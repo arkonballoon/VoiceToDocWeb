@@ -21,8 +21,18 @@ class TemplateService(Singleton):
         self.storage = StorageFactory.get_adapter()
         logger.info("Template Service initialisiert")
     
-    async def save_template(self, name: str, content: str, description: Optional[str] = None) -> Template:
-        template_data = await self.storage.save_template(name, content, description)
+    async def save_template(
+        self, 
+        name: str, 
+        content: str, 
+        description: Optional[str] = None,
+        file_format: Optional[str] = None,
+        placeholders: Optional[Dict[str, str]] = None,
+        file_path: Optional[str] = None
+    ) -> Template:
+        template_data = await self.storage.save_template(
+            name, content, description, file_format, placeholders, file_path
+        )
         return Template(**template_data)
     
     @log_function_call

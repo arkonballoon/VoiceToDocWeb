@@ -7,7 +7,15 @@ class StorageAdapter(ABC):
     """Basis-Interface für Storage-Implementierungen"""
     
     @abstractmethod
-    async def save_template(self, name: str, content: str, description: Optional[str] = None) -> Dict[str, Any]:
+    async def save_template(
+        self, 
+        name: str, 
+        content: str, 
+        description: Optional[str] = None,
+        file_format: Optional[str] = None,
+        placeholders: Optional[Dict[str, str]] = None,
+        file_path: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Template speichern"""
         pass
     

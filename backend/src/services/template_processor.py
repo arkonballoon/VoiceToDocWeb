@@ -68,7 +68,8 @@ class TemplateProcessor(Singleton):
         self, 
         template: str, 
         transcription: str,
-        process_id: str
+        process_id: str,
+        placeholders: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """Verarbeitet ein Template mit der gegebenen Transkription und sendet Updates"""
         try:
@@ -88,7 +89,7 @@ class TemplateProcessor(Singleton):
                 0.25,
                 "Extrahiere Informationen aus der Transkription..."
             )
-            extracted_info = await self._extract_information(template, transcription)
+            extracted_info = await self._extract_information(template, transcription, placeholders)
             
             # Template füllen
             logger.info(f"Fülle Template für {process_id}")
@@ -145,12 +146,17 @@ class TemplateProcessor(Singleton):
             # Verbindung entfernen
             await self.remove_connection(process_id)
     
-    async def process_template(self, template: str, transcription: str) -> Dict[str, Any]:
+    async def process_template(
+        self, 
+        template: str, 
+        transcription: str,
+        placeholders: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
         """Verarbeitet ein Template mit der gegebenen Transkription"""
         try:
             # Parallele Verarbeitung mit Timeout
             tasks = [
-                asyncio.create_task(self._extract_information(template, transcription)),
+                asyncio.create_task(self._extract_information(template, transcription, placeholders)),
                 asyncio.create_task(self._fill_template(template, {}, transcription)),
             ]
             
@@ -184,21 +190,54 @@ class TemplateProcessor(Singleton):
             logger.error(f"Fehler bei der Template-Verarbeitung: {str(e)}")
             raise
     
-    async def _extract_information(self, template: str, transcription: str) -> Dict[str, Any]:
-        """Extrahiert Informationen aus der Transkription"""
+    async def _extract_information(
+        self, 
+        template: str, 
+        transcription: str,
+        placeholders: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Extrahiert Informationen aus der Transkription basierend auf Platzhaltern
+        
+        Args:
+            template: Template-Text
+            transcription: Transkriptionstext
+            placeholders: Dictionary mit Platzhalternamen -> Prompts
+        """
         try:
+            # Wenn Platzhalter vorhanden sind, verwende diese für die Extraktion
+            if placeholders:
+                # Erstelle eine strukturierte Prompt-Liste für jeden Platzhalter
+                extraction_prompts = []
+                for placeholder_name, prompt in placeholders.items():
+                    extraction_prompts.append(f"- {placeholder_name}: {prompt}")
+                
+                system_prompt = f"""
+                    Extrahiere die folgenden Informationen aus der Transkription basierend auf den gegebenen Prompts.
+                    Gib nur die gefundenen Informationen als JSON zurück.
+                    Format: {{"platzhaltername": "extrahierter_wert"}}
+                    Wenn eine Information nicht gefunden werden kann, verwende einen leeren String "".
+                    Bei Listen gebe die Werte als kommagetrennte Zeichenkette zurück.
+                    
+                    Zu extrahierende Informationen:
+                    {chr(10).join(extraction_prompts)}
+                """
+            else:
+                # Fallback auf alte Methode für Rückwärtskompatibilität
+                system_prompt = """
+                    Extrahiere die im Template-Header unter "## Benötigte Informationen" 
+                    markierten Informationen aus der Transkription. 
+                    Gib nur die gefundenen Informationen als JSON zurück.
+                    Format: {"field_name": "extracted_value"}
+                    Wenn eine Information nicht gefunden werden kann, verwende einen leeren String "".
+                    Bei Listen gebe die Werte als kommagetrennte Zeichenkette zurück.
+                """
+            
             response = await asyncio.wait_for(
                 self.client.chat.completions.create(
                     model=settings.LLM_MODEL,
                     messages=[
-                        {"role": "system", "content": """
-                            Extrahiere die im Template-Header unter "## Benötigte Informationen" 
-                            markierten Informationen aus der Transkription. 
-                            Gib nur die gefundenen Informationen als JSON zurück.
-                            Format: {"field_name": "extracted_value"}
-                            Wenn eine Information nicht gefunden werden kann, verwende einen leeren String "".
-                            Bei Listen gebe die Werte als kommagetrennte Zeichenkette zurück.
-                        """},
+                        {"role": "system", "content": system_prompt},
                         {"role": "user", "content": f"Template:\n{template}\n\nTranskription:\n{transcription}"}
                     ],
                     response_format={ "type": "json_object" },

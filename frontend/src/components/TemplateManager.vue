@@ -10,7 +10,16 @@
           <div v-for="template in templates" 
                :key="template.id" 
                class="template-card">
-            <span class="template-name">{{ template.name }}</span>
+            <div class="template-info">
+              <span class="template-name">{{ template.name }}</span>
+              <span v-if="template.file_format" class="template-format">
+                {{ template.file_format.toUpperCase() }}
+              </span>
+              <span v-if="template.placeholders && Object.keys(template.placeholders).length > 0" 
+                    class="template-placeholders">
+                {{ Object.keys(template.placeholders).length }} Platzhalter
+              </span>
+            </div>
             <div class="template-actions">
               <button @click="editTemplate(template)" class="edit-button" title="Bearbeiten">
                 <i class="fas fa-edit"></i>
@@ -21,9 +30,20 @@
             </div>
           </div>
         </div>
-        <button @click="showCreateDialog = true" class="create-button">
-          <i class="fas fa-plus"></i> Neues Template
-        </button>
+        <div class="create-actions">
+          <button @click="showCreateDialog = true" class="create-button">
+            <i class="fas fa-plus"></i> Neues Template (Markdown)
+          </button>
+          <label class="upload-button">
+            <i class="fas fa-upload"></i> Word/Excel hochladen
+            <input 
+              type="file" 
+              accept=".docx,.xlsx" 
+              @change="handleFileUpload"
+              style="display: none"
+            />
+          </label>
+        </div>
       </div>
 
       <!-- Edit/Create Template Section -->
@@ -35,7 +55,36 @@
           </button>
         </div>
         <form @submit.prevent="handleSubmit" class="editor-form">
-          <div class="form-group editor-container">
+          <!-- Platzhalter-Konfiguration -->
+          <div v-if="currentTemplate.placeholders && Object.keys(currentTemplate.placeholders).length > 0" 
+               class="placeholders-section">
+            <h4>Platzhalter-Konfiguration</h4>
+            <p class="placeholder-info">
+              Konfiguriere die Prompts für jeden Platzhalter. Diese werden verwendet, um Informationen aus der Transkription zu extrahieren.
+            </p>
+            <table class="placeholders-table">
+              <thead>
+                <tr>
+                  <th>Platzhalter</th>
+                  <th>Prompt</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(prompt, placeholder) in currentTemplate.placeholders" :key="placeholder">
+                  <td class="placeholder-name">{{ placeholder }}</td>
+                  <td>
+                    <textarea 
+                      v-model="currentTemplate.placeholders[placeholder]"
+                      class="prompt-input"
+                      rows="2"
+                    ></textarea>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          
+          <div class="form-group editor-container" v-if="!currentTemplate.file_format || currentTemplate.file_format === 'markdown'">
             <label>Inhalt:</label>
             <MdEditor
               v-model="currentTemplate.content"
@@ -45,6 +94,11 @@
               :toolbars="toolbars"
               @onChange="handleEditorChange"
             />
+          </div>
+          <div v-else class="file-info">
+            <p><strong>Dateiformat:</strong> {{ currentTemplate.file_format.toUpperCase() }}</p>
+            <p v-if="currentTemplate.file_path"><strong>Datei:</strong> {{ currentTemplate.file_path }}</p>
+            <p class="info-text">Dieses Template wurde aus einer {{ currentTemplate.file_format.toUpperCase() }}-Datei erstellt. Bearbeiten Sie die Platzhalter-Prompts oben, um die Extraktion anzupassen.</p>
           </div>
           <div class="form-fields">
             <div class="form-group">
@@ -86,7 +140,10 @@ export default {
       currentTemplate: {
         name: '',
         description: '',
-        content: ''
+        content: '',
+        placeholders: {},
+        file_format: null,
+        file_path: null
       },
       editorTheme: 'light',
       toolbars: [
@@ -94,7 +151,8 @@ export default {
         'header', 'list', 'ordered-list', '|',
         'link', 'table', '|',
         'preview', 'fullscreen'
-      ]
+      ],
+      isUploading: false
     }
   },
   methods: {
@@ -107,29 +165,78 @@ export default {
       }
     },
     editTemplate(template) {
-      this.currentTemplate = { ...template }
+      this.currentTemplate = { 
+        ...template,
+        placeholders: template.placeholders ? { ...template.placeholders } : {}
+      }
       this.showEditDialog = true
     },
     closeDialog() {
       this.showCreateDialog = false
       this.showEditDialog = false
-      this.currentTemplate = { name: '', description: '', content: '' }
+      this.currentTemplate = { 
+        name: '', 
+        description: '', 
+        content: '',
+        placeholders: {},
+        file_format: null,
+        file_path: null
+      }
+    },
+    async handleFileUpload(event) {
+      const file = event.target.files[0]
+      if (!file) return
+      
+      // Prüfe Dateiformat
+      const extension = file.name.split('.').pop().toLowerCase()
+      if (!['docx', 'xlsx'].includes(extension)) {
+        alert('Nur .docx (Word) und .xlsx (Excel) Dateien werden unterstützt.')
+        return
+      }
+      
+      this.isUploading = true
+      try {
+        const template = await apiService.uploadTemplateFile(file)
+        await this.loadTemplates()
+        // Öffne Bearbeitungsdialog für das neue Template
+        this.editTemplate(template)
+        alert('Template erfolgreich hochgeladen! Platzhalter wurden automatisch erkannt.')
+      } catch (error) {
+        console.error('Fehler beim Hochladen:', error)
+        alert('Fehler beim Hochladen der Datei: ' + (error.message || 'Unbekannter Fehler'))
+      } finally {
+        this.isUploading = false
+        // Reset file input
+        event.target.value = ''
+      }
     },
     handleEditorChange(content) {
       this.currentTemplate.content = content
     },
     async handleSubmit() {
       try {
+        const templateData = {
+          name: this.currentTemplate.name,
+          description: this.currentTemplate.description,
+          content: this.currentTemplate.content
+        }
+        
+        // Füge Platzhalter hinzu, wenn vorhanden
+        if (this.currentTemplate.placeholders && Object.keys(this.currentTemplate.placeholders).length > 0) {
+          templateData.placeholders = this.currentTemplate.placeholders
+        }
+        
         if (this.showCreateDialog) {
-          await apiService.createTemplate(this.currentTemplate)
+          await apiService.createTemplate(templateData)
         } else {
-          await apiService.updateTemplate(this.currentTemplate.id, this.currentTemplate)
+          await apiService.updateTemplate(this.currentTemplate.id, templateData)
         }
         
         await this.loadTemplates()
         this.closeDialog()
       } catch (error) {
         console.error('Fehler:', error)
+        alert('Fehler beim Speichern: ' + (error.message || 'Unbekannter Fehler'))
       }
     }
   },
@@ -335,5 +442,118 @@ export default {
   display: flex;
   justify-content: flex-end;
   gap: 1rem;
+}
+
+.create-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.upload-button {
+  padding: 0.75rem 1.5rem;
+  background-color: var(--secondary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.upload-button:hover {
+  opacity: 0.9;
+}
+
+.template-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.template-format {
+  font-size: 0.75rem;
+  color: #666;
+  background: #f0f0f0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.template-placeholders {
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.placeholders-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: #f9f9f9;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.placeholders-section h4 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.placeholder-info {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 1rem;
+}
+
+.placeholders-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+.placeholders-table th,
+.placeholders-table td {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+.placeholders-table th {
+  background-color: #f5f5f5;
+  font-weight: bold;
+}
+
+.placeholder-name {
+  font-weight: bold;
+  color: var(--primary-color);
+  font-family: monospace;
+}
+
+.prompt-input {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.file-info {
+  padding: 1rem;
+  background: #f0f7ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
+
+.file-info p {
+  margin: 0.5rem 0;
+}
+
+.info-text {
+  font-size: 0.9rem;
+  color: #666;
+  font-style: italic;
 }
 </style> 

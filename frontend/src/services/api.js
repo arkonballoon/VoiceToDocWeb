@@ -162,6 +162,29 @@ class ApiService {
   }
 
   /**
+   * Template-Datei hochladen (Word/Excel)
+   * @param {File} file - Template-Datei (.docx oder .xlsx)
+   * @param {string} name - Optional: Template-Name
+   * @param {string} description - Optional: Beschreibung
+   * @returns {Promise<Object>} - Erstelltes Template
+   */
+  async uploadTemplateFile(file, name = null, description = null) {
+    const formData = new FormData()
+    formData.append('file', file)
+    if (name) formData.append('name', name)
+    if (description) formData.append('description', description)
+    
+    const options = {
+      method: 'POST',
+      headers: {},
+      body: formData,
+      timeout: 60000 // 60 Sekunden Timeout für Datei-Upload
+    }
+    
+    return this.request(`${API_CONFIG.ENDPOINTS.TEMPLATES}/upload`, options)
+  }
+
+  /**
    * Template aktualisieren
    * @param {string} id - Template-ID
    * @param {Object} template - Template-Daten

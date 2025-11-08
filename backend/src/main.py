@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, UploadFile, File, HTTPException, WebSocketDisconnect, Body, BackgroundTasks, Request
+from fastapi import FastAPI, WebSocket, UploadFile, File, HTTPException, WebSocketDisconnect, Body, BackgroundTasks, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.openapi.docs import get_swagger_ui_html
@@ -442,16 +442,125 @@ async def health_check():
 async def create_template(
     name: str = Body(...),
     content: str = Body(...),
-    description: str | None = Body(None)
+    description: str | None = Body(None),
+    placeholders: Dict[str, str] | None = Body(None)
 ):
     try:
+        # Wenn keine Platzhalter übergeben wurden, versuche sie aus dem Content zu extrahieren
+        if not placeholders:
+            from utils.placeholder_extractor import PlaceholderExtractor
+            from utils.prompt_generator import PromptGenerator
+            
+            placeholders_set = PlaceholderExtractor.extract_from_text(content)
+            if placeholders_set:
+                placeholders = PromptGenerator.generate_prompts_for_placeholders(placeholders_set)
+        
         template = await app.state.template_service.save_template(
             name=name,
             content=content,
-            description=description
+            description=description,
+            file_format='markdown',
+            placeholders=placeholders
         )
         return template
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/templates/upload")
+async def upload_template_file(
+    file: UploadFile = File(...),
+    name: str | None = Form(None),
+    description: str | None = Form(None)
+):
+    """
+    Lädt eine Template-Datei hoch (Word .docx oder Excel .xlsx)
+    und extrahiert automatisch Platzhalter.
+    """
+    try:
+        # Prüfe Dateiformat
+        file_extension = Path(file.filename).suffix.lower() if file.filename else ""
+        if file_extension not in ['.docx', '.xlsx']:
+            raise HTTPException(
+                status_code=400,
+                detail="Nur .docx (Word) und .xlsx (Excel) Dateien werden unterstützt"
+            )
+        
+        # Bestimme Dateiformat
+        file_format = 'docx' if file_extension == '.docx' else 'xlsx'
+        
+        # Speichere temporäre Datei
+        temp_file = TEMP_DIR / f"{uuid.uuid4()}{file_extension}"
+        try:
+            content = await file.read()
+            if len(content) == 0:
+                raise HTTPException(status_code=400, detail="Die Datei ist leer")
+            
+            with open(temp_file, "wb") as buffer:
+                buffer.write(content)
+            
+            # Extrahiere Platzhalter
+            from utils.placeholder_extractor import PlaceholderExtractor
+            from utils.prompt_generator import PromptGenerator
+            
+            placeholders_set = PlaceholderExtractor.extract_from_file(temp_file)
+            
+            # Generiere Standard-Prompts
+            placeholders_dict = PromptGenerator.generate_prompts_for_placeholders(placeholders_set)
+            
+            # Konvertiere Datei zu Text für content-Feld
+            # Für Word/Excel speichern wir den Dateipfad und extrahieren Text
+            if file_format == 'docx':
+                from docx import Document
+                doc = Document(temp_file)
+                content_text = '\n'.join([p.text for p in doc.paragraphs])
+            elif file_format == 'xlsx':
+                from openpyxl import load_workbook
+                workbook = load_workbook(temp_file, data_only=True)
+                content_text = '\n'.join([
+                    str(cell_value) 
+                    for sheet in workbook.worksheets 
+                    for row in sheet.iter_rows(values_only=True) 
+                    for cell_value in row 
+                    if cell_value is not None
+                ])
+            else:
+                content_text = ""
+            
+            # Verschiebe Datei in Template-Verzeichnis
+            template_id = str(uuid.uuid4())
+            template_file_path = TEMPLATE_PATH / f"{template_id}{file_extension}"
+            temp_file.rename(template_file_path)
+            
+            # Speichere Template
+            template_name = name or Path(file.filename).stem if file.filename else f"Template {template_id[:8]}"
+            template = await app.state.template_service.save_template(
+                name=template_name,
+                content=content_text,
+                description=description,
+                file_format=file_format,
+                placeholders=placeholders_dict,
+                file_path=str(template_file_path)
+            )
+            
+            return template
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Fehler beim Verarbeiten der Template-Datei: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Fehler bei der Verarbeitung: {str(e)}")
+        finally:
+            # Aufräumen der temporären Datei (falls noch vorhanden)
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except Exception as e:
+                    logger.warning(f"Fehler beim Löschen der temporären Datei: {str(e)}")
+                    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Fehler beim Hochladen der Template-Datei: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/templates/", response_model=List[Template])
@@ -656,7 +765,8 @@ async def process_template(
             template.content,
             request.transcription,
             process_id,
-            app.state.template_processor
+            app.state.template_processor,
+            template.placeholders  # Platzhalter-Prompts übergeben
         )
         
         return {"process_id": process_id, "status": "processing"}
@@ -669,14 +779,16 @@ async def process_template_background(
     template: str, 
     transcription: str, 
     process_id: str,
-    template_processor: TemplateProcessor
+    template_processor: TemplateProcessor,
+    placeholders: Optional[Dict[str, str]] = None
 ):
     """Führt die Template-Verarbeitung im Hintergrund durch und speichert das Ergebnis"""
     try:
         result = await template_processor.process_template_with_updates(
             template, 
             transcription, 
-            process_id
+            process_id,
+            placeholders
         )
         processing_results[process_id] = result
     except Exception as e:

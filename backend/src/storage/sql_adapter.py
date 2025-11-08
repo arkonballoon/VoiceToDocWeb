@@ -39,9 +39,18 @@ class SQLAdapter(StorageAdapter):
             raise
     
     @log_function_call
-    async def save_template(self, name: str, content: str, description: Optional[str] = None) -> Dict[str, Any]:
+    async def save_template(
+        self, 
+        name: str, 
+        content: str, 
+        description: Optional[str] = None,
+        file_format: Optional[str] = None,
+        placeholders: Optional[Dict[str, str]] = None,
+        file_path: Optional[str] = None
+    ) -> Dict[str, Any]:
         await self._ensure_initialized()
         from database.models import Template
+        import json
         template_id = str(uuid.uuid4())
         now = datetime.now()
         
@@ -52,6 +61,9 @@ class SQLAdapter(StorageAdapter):
                     name=name,
                     content=content,
                     description=description,
+                    file_format=file_format,
+                    placeholders=json.dumps(placeholders) if placeholders else None,
+                    file_path=file_path,
                     created_at=now,
                     updated_at=now
                 )
@@ -97,6 +109,7 @@ class SQLAdapter(StorageAdapter):
     async def update_template(self, template_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
         await self._ensure_initialized()
         from database.models import Template
+        import json
         try:
             async with self.async_session() as session:
                 template = await session.get(Template, template_id)
@@ -105,7 +118,11 @@ class SQLAdapter(StorageAdapter):
                 
                 for key, value in updates.items():
                     if hasattr(template, key):
-                        setattr(template, key, value)
+                        # Spezielle Behandlung für placeholders (konvertiere Dict zu JSON)
+                        if key == 'placeholders' and isinstance(value, dict):
+                            template.set_placeholders_dict(value)
+                        else:
+                            setattr(template, key, value)
                 
                 template.updated_at = datetime.now()
                 await session.commit()
@@ -145,6 +162,9 @@ class SQLAdapter(StorageAdapter):
             "name": template.name,
             "content": template.content,
             "description": template.description,
+            "file_format": template.file_format,
+            "placeholders": template.get_placeholders_dict(),
+            "file_path": template.file_path,
             "created_at": template.created_at.isoformat(),
-            "updated_at": template.updated_at.isoformat()
+            "updated_at": template.updated_at.isoformat() if hasattr(template, 'updated_at') else None
         } 

@@ -37,7 +37,15 @@ class FilesystemAdapter(StorageAdapter):
         logger.info(f"templates.json initialisiert in {self.templates_file}")
     
     @log_function_call
-    async def save_template(self, name: str, content: str, description: Optional[str] = None) -> Dict[str, Any]:
+    async def save_template(
+        self, 
+        name: str, 
+        content: str, 
+        description: Optional[str] = None,
+        file_format: Optional[str] = None,
+        placeholders: Optional[Dict[str, str]] = None,
+        file_path: Optional[str] = None
+    ) -> Dict[str, Any]:
         template_id = str(uuid.uuid4())
         now = datetime.now().isoformat()
         
@@ -46,6 +54,9 @@ class FilesystemAdapter(StorageAdapter):
             "name": name,
             "content": content,
             "description": description or "",
+            "file_format": file_format,
+            "placeholders": placeholders or {},
+            "file_path": file_path,
             "created_at": now,
             "updated_at": now
         }
@@ -73,7 +84,17 @@ class FilesystemAdapter(StorageAdapter):
         """Alle Templates laden"""
         try:
             with open(self.templates_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                templates = json.load(f)
+                # Stelle sicher, dass placeholders ein Dict ist (für Rückwärtskompatibilität)
+                for template in templates:
+                    if 'placeholders' in template and isinstance(template['placeholders'], str):
+                        try:
+                            template['placeholders'] = json.loads(template['placeholders'])
+                        except (json.JSONDecodeError, TypeError):
+                            template['placeholders'] = {}
+                    elif 'placeholders' not in template:
+                        template['placeholders'] = {}
+                return templates
         except Exception as e:
             logger.error(f"Fehler beim Laden der Templates: {str(e)}")
             return []
@@ -83,7 +104,16 @@ class FilesystemAdapter(StorageAdapter):
         template_path = self.storage_path / f"{template_id}.json"
         try:
             with open(template_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                template_data = json.load(f)
+                # Stelle sicher, dass placeholders ein Dict ist (für Rückwärtskompatibilität)
+                if 'placeholders' in template_data and isinstance(template_data['placeholders'], str):
+                    try:
+                        template_data['placeholders'] = json.loads(template_data['placeholders'])
+                    except (json.JSONDecodeError, TypeError):
+                        template_data['placeholders'] = {}
+                elif 'placeholders' not in template_data:
+                    template_data['placeholders'] = {}
+                return template_data
         except FileNotFoundError:
             return None
         except Exception as e:
